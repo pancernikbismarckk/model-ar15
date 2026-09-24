@@ -598,3 +598,26 @@ def clip_outline(outline, box2d):
     if g.geom_type == 'MultiPolygon':
         g = max(g.geoms, key=lambda q: q.area)
     return list(g.exterior.coords)[:-1]
+
+
+def emissive_material(name, color, strength, base=None, roughness=0.2, metallic=0.0):
+    m = material(name, base or color, metallic, roughness)
+    b = m.node_tree.nodes.get('Principled BSDF')
+    b.inputs['Emission Color'].default_value = (*color, 1.0)
+    b.inputs['Emission Strength'].default_value = strength
+    return m
+
+
+def glass_material(name, color=(0.86, 0.93, 0.92), alpha=0.16, roughness=0.04):
+    m = bpy.data.materials.get(name)
+    if m:
+        return m
+    m = material(name, color, 0.0, roughness)
+    b = m.node_tree.nodes.get('Principled BSDF')
+    b.inputs['Alpha'].default_value = alpha
+    try:
+        m.surface_render_method = 'BLENDED'
+    except Exception:
+        m.blend_method = 'BLEND'
+    m.use_backface_culling = False
+    return m

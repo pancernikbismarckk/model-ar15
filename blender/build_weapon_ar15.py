@@ -19,6 +19,7 @@ import bpy  # noqa: E402
 from mathutils import Vector  # noqa: E402
 
 import ar15lib as L  # noqa: E402
+import parts_attachments as A  # noqa: E402
 import parts_front as F  # noqa: E402
 import parts_misc as X  # noqa: E402
 import parts_rear as B  # noqa: E402
@@ -36,6 +37,13 @@ def materials():
         'rubber': L.material('ar15_rubber', (0.030, 0.030, 0.030), metallic=0.0, roughness=0.85),
         'brass': L.material('ar15_brass', (0.80, 0.56, 0.26), metallic=1.0, roughness=0.3),
         'copper': L.material('ar15_copper', (0.78, 0.40, 0.24), metallic=1.0, roughness=0.32),
+        'glass': L.glass_material('ar15_glass'),
+        'glass_dark': L.material('ar15_glass_dark', (0.02, 0.025, 0.03), metallic=0.0, roughness=0.06),
+        'reticle': L.emissive_material('ar15_reticle', (1.0, 0.04, 0.02), 12.0),
+        'lens_light': L.emissive_material('ar15_lens_light', (1.0, 0.96, 0.88), 0.0, base=(0.75, 0.78, 0.8),
+                                          roughness=0.05, metallic=0.4),
+        'lens_laser': L.emissive_material('ar15_lens_laser', (1.0, 0.03, 0.02), 0.0, base=(0.45, 0.03, 0.03),
+                                          roughness=0.06),
     }
 
 
@@ -79,9 +87,22 @@ def build():
     # magazine and sights
     for fn in (X.magazine, X.magazine_top, X.cartridge, X.rear_sight, X.front_sight):
         add(fn)
-    print(f'built {len(obs)} objects in {time.time() - t0:.1f}s, '
-          f'{sum(L.tri_count(o) for o in obs.values())} tris')
-    return obs
+    # attachments
+    atts = {}
+    for key, fn in (('holo', A.holo_sight), ('foregrip', A.foregrip), ('flashlight', A.flashlight),
+                    ('laser', A.laser)):
+        t = time.time()
+        parts = fn(M)
+        atts[key] = parts
+        for ob in parts:
+            print(f'  {ob.name:30s} {L.tri_count(ob):7d} tris')
+        print(f'    ({fn.__name__}: {time.time() - t:.1f}s)')
+    obs['__attachments__'] = atts
+    atts = obs.pop('__attachments__')
+    print(f'built {len(obs)} weapon objects in {time.time() - t0:.1f}s, '
+          f'{sum(L.tri_count(o) for o in obs.values())} tris; attachments: '
+          f'{sum(L.tri_count(o) for p in atts.values() for o in p)} tris')
+    return obs, atts
 
 
 # pivot (origin) of every part, in mm; parts that move in animations get their real pivot
@@ -118,10 +139,10 @@ PIVOTS = {
     'ar15_magazine_lips': (-44.0, 0.0, -16.5),
     'ar15_cartridge_case': (-73.6, 0.0, -11.0),
     'ar15_cartridge_bullet': (-73.6, 0.0, -11.0),
-    'ar15_rear_sight_base': (-152.5, 0.0, 31.6),
-    'ar15_rear_sight_leaf': (-151.8, 0.0, 39.5),        # folding axis (Y)
-    'ar15_front_sight_base': (357.0, 0.0, 31.6),
-    'ar15_front_sight_leaf': (347.0, 0.0, 39.5),        # folding axis (Y)
+    'ar15_rear_sight_base': (-145.0, 0.0, 31.6),
+    'ar15_rear_sight_leaf': (-151.8, 0.0, 40.2),        # folding axis (Y), folds forward +90 deg
+    'ar15_front_sight_base': (345.5, 0.0, 31.6),
+    'ar15_front_sight_leaf': (347.0, 0.0, 40.2),        # folding axis (Y), folds rearward -90 deg
 }
 
 HIERARCHY = {
@@ -174,6 +195,42 @@ SOCKETS = {
 }
 
 
+ATTACHMENT_ROOTS = {
+    'holo': ('ar15_att_holo', 'socket_att_scope'),
+    'foregrip': ('ar15_att_foregrip', 'socket_att_grip'),
+    'flashlight': ('ar15_att_flashlight', 'socket_att_flashlight'),
+    'laser': ('ar15_att_laser', 'socket_att_laser'),
+}
+
+
+def assemble_attachments(root, atts):
+    coll = L._COLL['c']
+    for key, parts in atts.items():
+        name, sock = ATTACHMENT_ROOTS[key]
+        e = bpy.data.objects.new(name, None)
+        e.empty_display_type = 'CUBE'
+        e.empty_display_size = 0.01
+        e.location = Vector(A.SOCKETS[sock]) * L.S
+        coll.objects.link(e)
+        L.parent(e, root)
+        bpy.context.view_layer.update()
+        for ob in parts:
+            L.set_origin(ob, tuple(v / L.S for v in e.matrix_world.translation))
+            bpy.context.view_layer.update()
+            L.parent(ob, e)
+    emit = {
+        'socket_light_emit': (A.LIGHT_X0 + 91.2, A.LIGHT_Y, A.LIGHT_Z),
+        'socket_laser_emit': A.LASER_EMIT,
+    }
+    for name, loc in list(A.SOCKETS.items()) + list(emit.items()):
+        s = bpy.data.objects.new(name, None)
+        s.empty_display_type = 'PLAIN_AXES'
+        s.empty_display_size = 0.012
+        s.location = Vector(loc) * L.S
+        coll.objects.link(s)
+        L.parent(s, root)
+
+
 def assemble(obs):
     coll = L._COLL['c']
     root = bpy.data.objects.new(WEAPON, None)
@@ -213,21 +270,6 @@ def assemble(obs):
     return root
 
 
-def uv_unwrap(obs):
-    """Automatic UVs (Smart UV Project) so the exports are ready for texture baking."""
-    import math
-    for ob in obs.values():
-        bpy.context.view_layer.objects.active = ob
-        for o in bpy.context.view_layer.objects:
-            o.select_set(False)
-        ob.select_set(True)
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.mesh.select_all(action='SELECT')
-        bpy.ops.uv.smart_project(angle_limit=math.radians(60), island_margin=0.004, scale_to_bounds=False)
-        bpy.ops.object.mode_set(mode='OBJECT')
-        ob.select_set(False)
-
-
 def report(obs):
     lo = Vector((1e9, 1e9, 1e9))
     hi = Vector((-1e9, -1e9, -1e9))
@@ -262,9 +304,9 @@ def main(argv):
     args = ap.parse_args(argv)
 
     reset_scene()
-    obs = build()
-    assemble(obs)
-    uv_unwrap(obs)
+    obs, atts = build()
+    root = assemble(obs)
+    assemble_attachments(root, atts)
     report(obs)
 
     if args.save:

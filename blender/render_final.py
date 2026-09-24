@@ -58,6 +58,24 @@ def fit_shot(name, direction, lens=70, res=RES, margin=1.06, left=False):
         mirror_lights()
 
 
+def configure(attachments=True):
+    """Show or hide the attachments; iron sights fold when the optic is mounted."""
+    for ob in bpy.data.objects:
+        p = ob
+        att = False
+        while p is not None:
+            if p.name.startswith('ar15_att_') and p.type == 'EMPTY':
+                att = True
+                break
+            p = p.parent
+        if att and ob.type == 'MESH':
+            ob.hide_render = not attachments
+    fold = math.radians(90.0) if attachments else 0.0
+    bpy.data.objects['ar15_rear_sight_leaf'].rotation_euler[1] = fold
+    bpy.data.objects['ar15_front_sight_leaf'].rotation_euler[1] = -fold
+    bpy.context.view_layer.update()
+
+
 def main():
     samples = int(sys.argv[1]) if len(sys.argv) > 1 else 128
     which = set(sys.argv[2].split(',')) if len(sys.argv) > 2 else None
@@ -67,6 +85,8 @@ def main():
 
     def want(n):
         return which is None or n in which
+
+    configure(True)
 
     if want('side'):
         P.setup_cycles((P.PHOTO_W * 2, P.PHOTO_H * 2), samples)
@@ -88,6 +108,14 @@ def main():
         shot('detail_muzzle', (530.0, -210.0, 110.0), (370.0, 0.0, 10.0), lens=55)
     if want('detail_grip_mag'):
         shot('detail_grip_mag', (-10.0, -330.0, -170.0), (-110.0, 0.0, -110.0), lens=55)
+    if want('detail_holo'):
+        shot('detail_holo', (60.0, -300.0, 210.0), (-80.0, 0.0, 50.0), lens=55)
+    if want('detail_front'):
+        shot('detail_front', (560.0, -190.0, 60.0), (345.0, 0.0, -15.0), lens=55)
+    if want('plain_3q'):
+        configure(False)
+        fit_shot('plain_3q', (-0.62, 0.72, -0.30))
+        configure(True)
 
 
 if __name__ == '__main__':

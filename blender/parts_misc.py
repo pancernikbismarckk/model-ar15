@@ -117,16 +117,23 @@ def _knurled_knob(bm, cx, cz, r, y0, y1, teeth=24, depth=0.45):
 
 
 def rear_sight(M):
-    base = [(-178.0, 25.4), (-127.0, 25.4), (-127.0, 33.2), (-129.0, 38.8), (-134.0, 43.6),
+    """Folding rear sight; the base has a channel the leaf folds forward into."""
+    base = [(-178.0, 25.4), (-112.0, 25.4), (-112.0, 33.2), (-114.0, 36.6), (-127.0, 38.0), (-134.0, 43.6),
             (-141.5, 45.4), (-149.0, 44.2), (-155.5, 40.5), (-158.0, 34.0), (-178.0, 34.0)]
-    ob = mk('ar15_rear_sight_base', prism(fillet(base, [1, 1, 2, 3, 3, 3, 3, 2, 2, 1.5], 4), 'XZ', -12.8, 12.8),
-            M['polymer'])
-    diff(ob, _rail_envelope(-190, -115))
-    # slot for the leaf between the base cheeks
-    diff(ob, box(-159.0, -10.2, 34.5, -143.0, 10.2, 50.0))
+    ob = mk('ar15_rear_sight_base',
+            prism(fillet(base, [1, 1, 1.5, 2, 3, 3, 3, 3, 2, 2, 1.5], 4), 'XZ', -12.8, 12.8), M['polymer'])
+    diff(ob, _rail_envelope(-190, -100))
+    cut = bmesh.new()
+    # channel for the leaf between the base cheeks (deployed and folded)
+    box(-159.5, -10.3, 33.0, -108.0, 10.3, 50.0, bm=cut)
+    # relief in the right cheek for the windage drum when folded
+    cylinder((-128.8, -16.5, 39.0), (-128.8, -9.0, 39.0), 6.9, seg=24, bm=cut)
+    diff(ob, cut)
     add = bmesh.new()
-    _knurled_knob(add, -138.5, 37.0, 4.6, -16.2, -12.3)
-    cylinder((-138.5, 12.3, 37.0), (-138.5, 14.6, 37.0), 4.0, seg=20, bm=add)
+    _knurled_knob(add, -140.5, 37.0, 4.3, -16.2, -12.3)
+    cylinder((-140.5, 12.3, 37.0), (-140.5, 14.6, 37.0), 4.0, seg=20, bm=add)
+    # leaf hinge pin
+    cylinder((-151.8, -13.3, 40.2), (-151.8, 13.3, 40.2), 1.8, seg=14, bm=add)
     union(ob, add)
     bevel(ob, 0.45, seg=2, angle=30)
     smooth(ob)
@@ -155,15 +162,17 @@ def rear_sight(M):
 
 
 def front_sight(M):
-    base = [(341.0, 25.4), (373.0, 25.4), (373.0, 33.5), (371.5, 40.5), (367.0, 45.0), (360.0, 45.8),
-            (354.5, 43.0), (352.5, 37.5), (352.0, 34.0), (341.0, 34.0)]
-    ob = mk('ar15_front_sight_base', prism(fillet(base, [1, 1, 2, 3, 3, 3, 3, 2, 1.5, 1.5], 4), 'XZ', -12.8, 12.8),
-            M['polymer'])
-    diff(ob, _rail_envelope(330, 385))
-    diff(ob, box(340.0, -10.2, 34.5, 353.5, 10.2, 50.0))
+    """Folding front sight; the leaf folds rearwards into the channel of its base."""
+    base = [(318.0, 25.4), (373.0, 25.4), (373.0, 33.5), (371.5, 40.5), (367.0, 45.0), (360.0, 45.8),
+            (354.5, 43.4), (349.0, 42.8), (336.0, 41.5), (322.0, 38.5), (318.0, 34.0)]
+    ob = mk('ar15_front_sight_base',
+            prism(fillet(base, [1, 1, 2, 3, 3, 3, 3, 2, 3, 3, 1.5], 4), 'XZ', -12.8, 12.8), M['polymer'])
+    diff(ob, _rail_envelope(305, 385))
+    diff(ob, box(314.0, -10.3, 33.0, 353.8, 10.3, 50.0))
     add = bmesh.new()
     _knurled_knob(add, 363.5, 37.8, 5.2, -16.4, -12.3)
     cylinder((363.5, 12.3, 37.8), (363.5, 14.6, 37.8), 4.2, seg=20, bm=add)
+    cylinder((347.0, -13.3, 40.2), (347.0, 13.3, 40.2), 1.8, seg=14, bm=add)
     union(ob, add)
     bevel(ob, 0.45, seg=2, angle=30)
     smooth(ob)

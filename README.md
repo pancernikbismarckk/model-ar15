@@ -7,15 +7,18 @@ chwyt A2, polimerowy magazynek 30-nabojowy, składane przyrządy celownicze, tł
 **Bez oznaczeń producenta** — model nie zawiera żadnych napisów, logotypów, numerów seryjnych
 ani oznaczeń bezpiecznika. Wszystkie nazwy obiektów są generyczne (`weapon_ar15`, `ar15_*`).
 
-![bok](renders/weapon_ar15_side.png)
+![z dodatkami](renders/weapon_ar15_3q_front.png)
+
+![bez dodatków](renders/weapon_ar15_plain_3q.png)
 
 ## Pliki
 
 | Plik | Opis |
 |---|---|
-| `weapon_ar15.blend` | scena Blendera (kolekcja `weapon_ar15`, 36 siatek + 6 socketów) |
-| `export/weapon_ar15.glb` | eksport glTF 2.0 (hierarchia, materiały, UV) |
-| `export/weapon_ar15.fbx` | eksport FBX (hierarchia, materiały, UV, właściwości) |
+| `weapon_ar15.blend` | scena Blendera (kolekcja `weapon_ar15`: broń, 4 dodatki, sockety) |
+| `export/weapon_ar15.glb` | eksport glTF 2.0 (hierarchia, tekstury PBR, dodatki) |
+| `export/weapon_ar15.fbx` | eksport FBX (hierarchia, UV, tekstury z `textures/`, właściwości) |
+| `textures/*.png` | atlasy tekstur (broń 2048, dodatki 1024) |
 | `renders/*.png` | rendery podglądowe (Cycles) |
 | `blender/*.py` | generator — model jest w całości budowany skryptem, więc każdą poprawkę można odtworzyć |
 
@@ -42,6 +45,35 @@ długość 33"), a render z boku pokrywa się ze zdjęciem 1:1.
 - Eksport GLB jest w konwencji glTF (+Y w górę); FBX zapisany z domyślnymi osiami Blendera.
   Orientację pod konkretny silnik ustawimy w kolejnym kroku.
 
+## Dodatki
+
+Wszystkie dodatki są generyczne (bez nazw i logo producentów) i siedzą w osobnych obiektach-rodzicach,
+więc można je eksportować jako osobne komponenty broni:
+
+| Obiekt | Dodatek | Mocowanie |
+|---|---|---|
+| `ar15_att_holo` | celownik holograficzny (szkło + podświetlany czerwony krzyż/pierścień) | szyna Picatinny komory górnej, `socket_att_scope` |
+| `ar15_att_foregrip` | chwyt przedni pionowy | dolny slot M-LOK, `socket_att_grip` |
+| `ar15_att_flashlight` | latarka taktyczna na montażu offset | prawy slot M-LOK, `socket_att_flashlight` |
+| `ar15_att_laser` | moduł laserowy (laser + okno IR) | lewy slot M-LOK, `socket_att_laser` |
+
+Przy założonym celowniku przyrządy mechaniczne są złożone jak w prawdziwej broni: tylny przeziernik
+składa się do przodu (+90° wokół osi Y), muszka do tyłu (−90°) — obie mają pivot na osi zawiasu i
+wnękę w podstawie, w którą chowają się po złożeniu. Punkty emisji: `socket_light_emit`, `socket_laser_emit`.
+
+## Tekstury
+
+Wypiekane (bake) atlasy PBR w `textures/`:
+
+| Atlas | Rozdzielczość | Mapy |
+|---|---|---|
+| `ar15_weapon_*` | 2048 × 2048 | `basecolor` (z AO), `orm` (R = AO, G = roughness, B = metallic), `normal` (OpenGL) |
+| `ar15_attachments_*` | 1024 × 1024 | jak wyżej |
+
+Detal powierzchni: ziarno anodowanego aluminium, delikatne przetarcia krawędzi, faktura fosforanowanej
+stali, stipple polimeru, radełkowanie chwytu, AO w zagłębieniach. Źródłowe materiały proceduralne
+(`*__detail`) zostają w pliku .blend, więc bake można powtórzyć skryptem `blender/texture_bake.py`.
+
 ## Hierarchia i punkty obrotu (pod animacje)
 
 ```
@@ -64,12 +96,13 @@ weapon_ar15                       (empty, root)
 ```
 
 Sockety (empty) dla silnika: `socket_muzzle`, `socket_shell_eject`, `socket_grip`,
-`socket_sight_rear`, `socket_sight_front`, `socket_magazine`.
+`socket_sight_rear`, `socket_sight_front`, `socket_magazine`, oraz dla dodatków
+`socket_att_scope`, `socket_att_grip`, `socket_att_flashlight`, `socket_att_laser`,
+`socket_light_emit`, `socket_laser_emit`.
 
 ## Siatka i materiały
 
-- ~113 tys. trójkątów, 36 obiektów, fazowane krawędzie + weighted normals, automatyczne UV
-  (Smart UV Project).
+- Broń ~114 tys. trójkątów (36 obiektów) + dodatki ~24 tys.; fazowane krawędzie + weighted normals.
 - To jest model źródłowy (high-poly). Pod **FiveM / GTA V** zrobimy z niego wersję game-ready
   (niska siatka + bake normal map, tekstury, eksport `.ydr`) — po akceptacji kształtu.
 - Materiały PBR: `ar15_aluminum_anodized`, `ar15_steel_phosphate`, `ar15_polymer`,
@@ -80,8 +113,10 @@ Sockety (empty) dla silnika: `socket_muzzle`, `socket_shell_eject`, `socket_grip
 
 ```bash
 pip install bpy shapely          # Blender 5.0 jako moduł Pythona
-python3 blender/build_weapon_ar15.py --save --export
-python3 blender/render_final.py 128             # rendery do renders/
+python3 blender/build_weapon_ar15.py --save     # geometria + dodatki
+python3 blender/texture_bake.py 2048            # atlasy UV + bake tekstur
+python3 blender/export_all.py                   # GLB + FBX z teksturami
+python3 blender/render_final.py 96              # rendery do renders/
 ```
 
 lub w zainstalowanym Blenderze: `blender -b -P blender/build_weapon_ar15.py -- --save --export`.
