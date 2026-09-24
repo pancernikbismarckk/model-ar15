@@ -3,3 +3,6 @@ __pycache__/
 *.blend1
 *.blend@
 renders/wip*
+build/
+obj/
+bin/

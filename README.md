@@ -20,6 +20,14 @@ ani oznaczeń bezpiecznika. Wszystkie nazwy obiektów są generyczne (`weapon_ar
 | `export/weapon_ar15.fbx` | eksport FBX (hierarchia, UV, tekstury z `textures/`, właściwości) |
 | `textures/*.png` | atlasy tekstur (broń 2048, dodatki 2048) |
 | `renders/*.png` | rendery podglądowe (Cycles) |
+| `weapon_ar15_game.blend` | **wersja do gry**: 9 804 trójkątów ze wszystkimi dodatkami, szkielet, 9 animacji |
+| `export/game/weapon_ar15_game.{glb,fbx}` | eksport wersji do gry z animacjami |
+| `textures/game/*.png` | wypieczone tekstury PBR wersji do gry (broń 2048, dodatki 1024) |
+| `fivem/weapon_ar15/` | **gotowy zasób FiveM** (`.ydr`/`.ytd`, pliki meta, `client.lua`) |
+| `fivem/ox_inventory/` | `weapons_ar15.lua` (wpisy do `ox_inventory/data/weapons.lua`) + ikony przedmiotów |
+| `fivem/tools/` | generator `weaponanimations.meta` (PowerShell i Python) |
+| `fivem/weapon_ar15_sollumz.blend` | scena Sollumz (do edycji i ponownego eksportu), tekstury z `textures/fivem/` |
+| `tools/cwconv/` | konwerter CodeWalker XML ↔ `.ydr`/`.ytd` (na CodeWalker.Core) |
 | `blender/*.py` | generator — model jest w całości budowany skryptem, więc każdą poprawkę można odtworzyć |
 
 ## Wymiary (skala 1:1, 1 jednostka Blendera = 1 m)
@@ -43,7 +51,8 @@ długość 33"), a render z boku pokrywa się ze zdjęciem 1:1.
 - **+X** w stronę wylotu lufy, **+Z** w górę, **+Y** lewa strona broni (okno wyrzutowe jest po stronie −Y).
 - **Punkt (0, 0, 0)**: oś przewodu lufy × przednia płaszczyzna komory zamkowej górnej.
 - Eksport GLB jest w konwencji glTF (+Y w górę); FBX zapisany z domyślnymi osiami Blendera.
-  Orientację pod konkretny silnik ustawimy w kolejnym kroku.
+- GTA V używa tych samych osi (lufa +X, góra +Z, prawa strona −Y), więc pliki `.ydr` nie mają
+  żadnych dodatkowych obrotów.
 
 ## Dodatki
 
@@ -103,11 +112,96 @@ Sockety (empty) dla silnika: `socket_muzzle`, `socket_shell_eject`, `socket_grip
 ## Siatka i materiały
 
 - Broń ~114 tys. trójkątów (36 obiektów) + dodatki ~48 tys.; fazowane krawędzie + weighted normals.
-- To jest model źródłowy (high-poly). Pod **FiveM / GTA V** zrobimy z niego wersję game-ready
-  (niska siatka + bake normal map, tekstury, eksport `.ydr`) — po akceptacji kształtu.
+- To jest model źródłowy (high-poly). Wersja do gry jest opisana niżej.
 - Materiały PBR: `ar15_aluminum_anodized`, `ar15_steel_phosphate`, `ar15_polymer`,
   `ar15_polymer_checkered` (radełkowanie chwytu jako proceduralny bump), `ar15_rubber`,
   `ar15_brass`, `ar15_copper`.
+
+## Wersja do gry (FiveM / GTA V)
+
+Siatka jest budowana tymi samymi skryptami w trybie niskiego detalu, a cały detal high-poly
+(fazowania, radełkowanie, śruby, faktury, przetarcia) jest wypiekany na mapy normal/kolor/ORM.
+
+| Część | Trójkąty |
+|---|---:|
+| Broń (bez magazynka) | 7 016 |
+| Magazynek | 468 |
+| Celownik holograficzny | 802 |
+| Chwyt przedni | 262 |
+| Latarka | 944 |
+| Laser | 312 |
+| **Razem, wszystko założone** | **9 804** (limit 10 000) |
+
+Szkielet (kości) i animacje w `weapon_ar15_game.blend` / `export/game/`: `fire`, `fire_auto`,
+`fire_last` (zamek zostaje z tyłu), `reload`, `reload_empty` (zwolnienie zamka), `charge` (rączka
+napinacza), `sights_fold`, `stock_extend`, `shell_eject` (łuska jako osobny model, 48 trójkątów).
+Ruchome części mają własne kości: suwadło, rączka napinacza, spust, pokrywa okna wyrzutowego,
+zatrzask zamka, zatrzask magazynka, bezpiecznik, kolba, przeziernik i muszka.
+
+![FiveM, wszystkie dodatki](renders/fivem_full.png)
+
+Ten render i dwa kolejne są zrobione z **gotowych plików `.ydr`/`.ytd`** (przekonwertowanych z
+powrotem przez CodeWalker.Core i zaimportowanych Sollumzem), z dodatkami ustawionymi tak jak
+ustawia je gra: początek modelu dodatku na kości mocowania broni.
+
+![FiveM, bez dodatków](renders/fivem_default.png)
+
+## FiveM + ox_inventory
+
+Broń jest przedmiotem `WEAPON_AR15`, a każdy dodatek osobnym przedmiotem ox_inventory:
+
+| Przedmiot ox | Komponent GTA | Model | Mocowanie |
+|---|---|---|---|
+| `WEAPON_AR15` (AR-15, amunicja `ammo-rifle`) | — | `w_ar_ar15` | — |
+| — (domyślny) | `COMPONENT_AR15_CLIP_01` (30 naboi) | `w_ar_ar15_mag1` | `WAPClip` |
+| — (domyślny) | `COMPONENT_AR15_SIGHTS` (przyrządy rozłożone) | `w_ar_ar15_sights` | `WAPScop` |
+| `at_ar15_holo` | `COMPONENT_AT_AR15_HOLO` | `w_at_ar15_holo` | `WAPScop` |
+| `at_ar15_grip` | `COMPONENT_AT_AR15_AFGRIP` | `w_at_ar15_afgrip` | `WAPGrip` |
+| `at_ar15_flashlight` | `COMPONENT_AT_AR15_FLSH` | `w_at_ar15_flsh` | `WAPFlshLasr` |
+| `at_ar15_laser` | `COMPONENT_AT_AR15_LASER` | `w_at_ar15_laser` | `WAPSupp_2` |
+
+| ![](fivem/ox_inventory/web/images/WEAPON_AR15.png) | ![](fivem/ox_inventory/web/images/at_ar15_holo.png) | ![](fivem/ox_inventory/web/images/at_ar15_grip.png) | ![](fivem/ox_inventory/web/images/at_ar15_flashlight.png) | ![](fivem/ox_inventory/web/images/at_ar15_laser.png) |
+|---|---|---|---|---|
+
+**Składane przyrządy w grze:** rozłożone przyrządy są domyślnym komponentem na mocowaniu `WAPScop`.
+Celownik holograficzny siedzi na tym samym mocowaniu, więc po założeniu zastępuje je, a model
+celownika zawiera przyrządy złożone. Po zdjęciu celownika `client.lua` przywraca przyrządy rozłożone.
+
+### Instalacja
+
+1. Skopiuj `fivem/weapon_ar15` do `resources/` serwera.
+2. Wygeneruj animacje (raz, ok. 1 min): w OpenIV lub CodeWalkerze wyeksportuj z gry
+   `update\update.rpf\common\data\ai\weaponanimations.meta`, potem:
+   ```
+   powershell -ExecutionPolicy Bypass -File fivem\tools\make_weaponanimations.ps1 -Vanilla C:\sciezka\weaponanimations.meta
+   ```
+   (albo `python3 fivem/tools/make_weaponanimations.py <plik>`). Skrypt kopiuje wszystkie zestawy
+   animacji `WEAPON_CARBINERIFLE` jako `WEAPON_AR15` i nadpisuje `meta/weaponanimations.meta`.
+   Nazwy zestawów animacji pochodzą z plików gry, dlatego nie są wpisane na sztywno: zła nazwa
+   potrafi wysypać klienta.
+3. W `ox_inventory/data/weapons.lua` dopisz wpis z `Weapons` i cztery wpisy z `Components` z pliku
+   `fivem/ox_inventory/weapons_ar15.lua` (nie podmieniaj całego pliku ox). Ikony z
+   `fivem/ox_inventory/web/images/` skopiuj do `ox_inventory/web/images/`.
+4. `server.cfg`: `ensure weapon_ar15` przed `ensure ox_inventory`.
+5. Test: `/giveitem <id> WEAPON_AR15 1`, `/giveitem <id> ammo-rifle 120`,
+   `/giveitem <id> at_ar15_holo 1` (i `at_ar15_grip`, `at_ar15_flashlight`, `at_ar15_laser`).
+   Dodatek zakłada się, używając przedmiotu z bronią w ręku, a zdejmuje z menu broni w ekwipunku.
+
+Latarka włącza się jak w każdej broni z latarką w GTA. Laser: klawisz **J** (FiveM → Ustawienia →
+Klawisze → FiveM, „AR-15: laser wł./wył.”); promień widzą też inni gracze w promieniu 80 m.
+
+### Co jest sprawdzone, a co wymaga testu w grze
+
+- Sprawdzone tutaj: pliki `.ydr`/`.ytd` wczytują się w CodeWalker.Core i po imporcie do Blendera
+  składają się poprawnie; wszystkie nazwy pól i flag w plikach meta istnieją w liście nazw metadanych
+  gry (CodeWalker); składnia Lua; wpisy ox_inventory; build jest powtarzalny (identyczne sumy MD5).
+- Do sprawdzenia w grze (nie da się tu uruchomić GTA): ułożenie broni w dłoni (kość `Gun_GripR`
+  skopiowana z waniliowego karabinu), przesunięcia widoku z pierwszej osoby (`FirstPerson*` w
+  `weapons.meta`), punkt świecenia latarki i mocowanie lasera na `WAPSupp_2`. Wartości balansu
+  (obrażenia 32, 30 naboi, szybkostrzelność 0,12 s) to punkt wyjścia do własnych ustawień.
+- Animacje z `weapon_ar15_game.blend` to animacje modelu (suwadło, pokrywa, magazynek). W grze postać
+  używa animacji karabinka z gry, a błysk z lufy i wyrzut łusek to efekty GTA na kościach
+  `Gun_Muzzle` i `Gun_VFX_Eject`. Kości ruchomych części są w `.ydr`, gotowe pod słownik animacji `.ycd`.
 
 ## Odtworzenie modelu
 
@@ -119,6 +213,20 @@ python3 blender/texture_bake.py 2048            # atlasy UV + bake tekstur
 # python3 blender/update_attachments.py && python3 blender/texture_bake.py --only ar15_attachments
 python3 blender/export_all.py                   # GLB + FBX z teksturami
 python3 blender/render_final.py 96              # rendery do renders/
+python3 blender/build_game.py                   # wersja do gry: siatka LOD, bake, szkielet, animacje
+```
+
+Pliki FiveM (Linux, bez Windowsa i bez GTA):
+
+```bash
+apt install imagemagick dotnet-sdk-8.0
+pip install --pre szio==1.4.0.dev0
+git clone https://github.com/Sollumz/Sollumz build/Sollumz        # testowane na f7fe616 (2.9.0-dev)
+git clone https://github.com/dexyfex/CodeWalker build/CodeWalker   # testowane na 485d56b
+dotnet build tools/cwconv -c Release -o build/cwconv
+python3 blender/build_fivem.py --sollumz build/Sollumz --cwconv build/cwconv/cwconv
+python3 blender/verify_fivem.py --sollumz build/Sollumz --cwconv build/cwconv/cwconv   # kontrola
+python3 blender/render_icons.py                                    # ikony ox_inventory
 ```
 
 lub w zainstalowanym Blenderze: `blender -b -P blender/build_weapon_ar15.py -- --save --export`.

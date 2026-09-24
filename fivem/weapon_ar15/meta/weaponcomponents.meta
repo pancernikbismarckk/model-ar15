@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Components of WEAPON_AR15. Every component model has its origin (and an AAP* bone) exactly on the
+  weapon attach bone it uses, so no offsets are needed:
+    WAPClip      COMPONENT_AR15_CLIP_01    magazine (default)
+    WAPScop      COMPONENT_AR15_SIGHTS     flip-up iron sights, raised (default)
+                 COMPONENT_AT_AR15_HOLO    holographic sight + the iron sights folded down
+                                           (same attach point, so fitting it replaces the raised sights)
+    WAPGrip      COMPONENT_AT_AR15_AFGRIP  angled foregrip
+    WAPFlshLasr  COMPONENT_AT_AR15_FLSH    weapon light; its origin is the lens centre
+    WAPSupp_2    COMPONENT_AT_AR15_LASER   laser module; its origin is the emitter (the beam is drawn by client.lua)
+-->
+<CWeaponComponentInfoBlob>
+  <Infos>
+    <Item type="CWeaponComponentClipInfo">
+      <Name>COMPONENT_AR15_CLIP_01</Name>
+      <Model>w_ar_ar15_mag1</Model>
+      <LocName>WCT_CLIP1</LocName>
+      <LocDesc>WCD_AR15_CLIP1</LocDesc>
+      <AttachBone>AAPClip</AttachBone>
+      <AccuracyModifier type="NULL" />
+      <DamageModifier type="NULL" />
+      <FallOffModifier type="NULL" />
+      <bShownOnWheel value="false" />
+      <CreateObject value="true" />
+      <HudDamage value="0" />
+      <HudSpeed value="0" />
+      <HudCapacity value="0" />
+      <HudAccuracy value="0" />
+      <HudRange value="0" />
+      <ClipSize value="30" />
+      <AmmoInfo />
+      <ReloadData type="NULL" />
+    </Item>
+    <Item type="CWeaponComponentInfo">
+      <Name>COMPONENT_AR15_SIGHTS</Name>
+      <Model>w_ar_ar15_sights</Model>
+      <LocName>WCT_AR15_SIGHTS</LocName>
+      <LocDesc>WCD_AR15_SIGHTS</LocDesc>
+      <AttachBone>AAPScop</AttachBone>
+      <AccuracyModifier type="NULL" />
+      <DamageModifier type="NULL" />
+      <FallOffModifier type="NULL" />
+      <bShownOnWheel value="false" />
+      <CreateObject value="true" />
+      <HudDamage value="0" />
+      <HudSpeed value="0" />
+      <HudCapacity value="0" />
+      <HudAccuracy value="0" />
+      <HudRange value="0" />
+    </Item>
+    <Item type="CWeaponComponentInfo">
+      <Name>COMPONENT_AT_AR15_HOLO</Name>
+      <Model>w_at_ar15_holo</Model>
+      <LocName>WCT_AR15_HOLO</LocName>
+      <LocDesc>WCD_AR15_HOLO</LocDesc>
+      <AttachBone>AAPScop</AttachBone>
+      <AccuracyModifier type="NULL" />
+      <DamageModifier type="NULL" />
+      <FallOffModifier type="NULL" />
+      <bShownOnWheel value="false" />
+      <CreateObject value="true" />
+      <HudDamage value="0" />
+      <HudSpeed value="0" />
+      <HudCapacity value="0" />
+      <HudAccuracy value="10" />
+      <HudRange value="0" />
+    </Item>
+    <Item type="CWeaponComponentInfo">
+      <Name>COMPONENT_AT_AR15_AFGRIP</Name>
+      <Model>w_at_ar15_afgrip</Model>
+      <LocName>WCT_AR15_AFGRIP</LocName>
+      <LocDesc>WCD_AR15_AFGRIP</LocDesc>
+      <AttachBone>AAPGrip</AttachBone>
+      <AccuracyModifier type="NULL" />
+      <DamageModifier type="NULL" />
+      <FallOffModifier type="NULL" />
+      <bShownOnWheel value="false" />
+      <CreateObject value="true" />
+      <HudDamage value="0" />
+      <HudSpeed value="0" />
+      <HudCapacity value="0" />
+      <HudAccuracy value="5" />
+      <HudRange value="0" />
+    </Item>
+    <Item type="CWeaponComponentFlashLightInfo">
+      <Name>COMPONENT_AT_AR15_FLSH</Name>
+      <Model>w_at_ar15_flsh</Model>
+      <LocName>WCT_AR15_FLSH</LocName>
+      <LocDesc>WCD_AR15_FLSH</LocDesc>
+      <AttachBone>AAPFlsh</AttachBone>
+      <AccuracyModifier type="NULL" />
+      <DamageModifier type="NULL" />
+      <FallOffModifier type="NULL" />
+      <bShownOnWheel value="false" />
+      <CreateObject value="true" />
+      <HudDamage value="0" />
+      <HudSpeed value="0" />
+      <HudCapacity value="0" />
+      <HudAccuracy value="0" />
+      <HudRange value="0" />
+      <MainLightIntensity value="16.000000" />
+      <MainLightColor value="0xFFF8EEDA" />
+      <MainLightRange value="35.000000" />
+      <MainLightFalloffExponent value="32.000000" />
+      <MainLightInnerAngle value="0.000000" />
+      <MainLightOuterAngle value="16.000000" />
+      <MainLightCoronaIntensity value="3.000000" />
+      <MainLightCoronaSize value="0.200000" />
+      <MainLightVolumeIntensity value="0.300000" />
+      <MainLightVolumeSize value="0.100000" />
+      <MainLightVolumeExponent value="70.000000" />
+      <MainLightVolumeOuterColor value="0xFF050E15" />
+      <MainLightShadowFadeDistance value="10.000000" />
+      <MainLightSpecularFadeDistance value="10.000000" />
+      <SecondaryLightIntensity value="4.000000" />
+      <SecondaryLightColor value="0xFFFFFFFF" />
+      <SecondaryLightRange value="8.000000" />
+      <SecondaryLightFalloffExponent value="64.000000" />
+      <SecondaryLightInnerAngle value="0.000000" />
+      <SecondaryLightOuterAngle value="40.000000" />
+      <SecondaryLightVolumeIntensity value="0.300000" />
+      <SecondaryLightVolumeSize value="0.400000" />
+      <SecondaryLightVolumeExponent value="15.000000" />
+      <SecondaryLightVolumeOuterColor value="0xFF000000" />
+      <SecondaryLightFadeDistance value="10.000000" />
+      <ToggleWhenAiming value="false" />
+    </Item>
+    <Item type="CWeaponComponentInfo">
+      <Name>COMPONENT_AT_AR15_LASER</Name>
+      <Model>w_at_ar15_laser</Model>
+      <LocName>WCT_AR15_LASER</LocName>
+      <LocDesc>WCD_AR15_LASER</LocDesc>
+      <AttachBone>AAPFlsh</AttachBone>
+      <AccuracyModifier type="NULL" />
+      <DamageModifier type="NULL" />
+      <FallOffModifier type="NULL" />
+      <bShownOnWheel value="false" />
+      <CreateObject value="true" />
+      <HudDamage value="0" />
+      <HudSpeed value="0" />
+      <HudCapacity value="0" />
+      <HudAccuracy value="0" />
+      <HudRange value="0" />
+    </Item>
+  </Infos>
+  <InfoBlobName>weapon_ar15 components</InfoBlobName>
+</CWeaponComponentInfoBlob>

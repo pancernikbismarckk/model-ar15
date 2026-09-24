@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PLACEHOLDER. Generate the real file once from your own game files (1 minute):
+    1. OpenIV / CodeWalker: export update\update.rpf\common\data\ai\weaponanimations.meta
+    2. fivem\tools\make_weaponanimations.ps1 -Vanilla <exported file>   (or make_weaponanimations.py)
+  The script copies every WEAPON_CARBINERIFLE animation set as WEAPON_AR15 and overwrites this file.
+  Until then the ped has no rifle animations for WEAPON_AR15.
+-->
+<CWeaponAnimationsSets>
+  <WeaponAnimationsSets />
+</CWeaponAnimationsSets>

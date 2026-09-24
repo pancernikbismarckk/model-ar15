@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- All models of weapon_ar15 share one texture dictionary: stream/w_ar_ar15.ytd -->
+<CWeaponModelInfo__InitDataList>
+  <InitDatas>
+    <Item>
+      <modelName>w_ar_ar15</modelName>
+      <txdName>w_ar_ar15</txdName>
+      <ptfxAssetName>NULL</ptfxAssetName>
+      <lodDist value="500" />
+    </Item>
+    <Item>
+      <modelName>w_ar_ar15_mag1</modelName>
+      <txdName>w_ar_ar15</txdName>
+      <ptfxAssetName>NULL</ptfxAssetName>
+      <lodDist value="500" />
+    </Item>
+    <Item>
+      <modelName>w_ar_ar15_sights</modelName>
+      <txdName>w_ar_ar15</txdName>
+      <ptfxAssetName>NULL</ptfxAssetName>
+      <lodDist value="500" />
+    </Item>
+    <Item>
+      <modelName>w_at_ar15_holo</modelName>
+      <txdName>w_ar_ar15</txdName>
+      <ptfxAssetName>NULL</ptfxAssetName>
+      <lodDist value="500" />
+    </Item>
+    <Item>
+      <modelName>w_at_ar15_afgrip</modelName>
+      <txdName>w_ar_ar15</txdName>
+      <ptfxAssetName>NULL</ptfxAssetName>
+      <lodDist value="500" />
+    </Item>
+    <Item>
+      <modelName>w_at_ar15_flsh</modelName>
+      <txdName>w_ar_ar15</txdName>
+      <ptfxAssetName>NULL</ptfxAssetName>
+      <lodDist value="500" />
+    </Item>
+    <Item>
+      <modelName>w_at_ar15_laser</modelName>
+      <txdName>w_ar_ar15</txdName>
+      <ptfxAssetName>NULL</ptfxAssetName>
+      <lodDist value="500" />
+    </Item>
+  </InitDatas>
+</CWeaponModelInfo__InitDataList>
