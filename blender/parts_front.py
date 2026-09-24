@@ -4,9 +4,9 @@ import math
 import bmesh
 from mathutils import Matrix, Vector
 
-from ar15lib import (S, bevel, boolean, box, circle, cylinder, fillet, lathe, merge, mk, prism,
+from ar15lib import (S, bevel, boolean, box, circle, cylinder, fillet, lathe, lod, merge, mk, prism,
                      rrect, smooth, stadium)
-from parts_receivers import RAIL_TOP, diff, rail_slot_cutters, union
+from parts_receivers import RAIL_TOP, diff, rail_slot_cutters, rail_teeth, union
 
 # Barrel: 16.1" (408.9 mm) from the bolt face to the crown
 BOLT_FACE_X = -8.4
@@ -53,7 +53,12 @@ def barrel(M):
         (FH_X0 - 1.5, r_muz), (FH_X0 - 1.0, 6.35), (MUZZLE_X - 0.6, 6.35), (MUZZLE_X, 5.6),
         (MUZZLE_X, 3.4), (MUZZLE_X - 0.5, 2.85),
     ]
-    bm = lathe(prof, seg=40, closed=True)
+    if lod():
+        # game mesh: only what shows in front of and through the handguard, bore near the muzzle
+        prof = [(MUZZLE_X - 12.0, 2.85), (10.0, 2.85), (10.0, r_gov), (GAS_PORT_X + 14.5, r_gov),
+                (GAS_PORT_X + 14.5, r_muz), (FH_X0 - 1.0, r_muz), (FH_X0 - 1.0, 6.35), (MUZZLE_X, 6.35),
+                (MUZZLE_X, 2.85)]
+    bm = lathe(prof, seg=40, closed=True, lod_seg=10)
     ob = mk('ar15_barrel', bm, M['steel'])
     smooth(ob, angle=40)
     return ob
@@ -103,7 +108,11 @@ def handguard(M):
     rail = [(7.85, top_z - 0.8), (7.85, RAIL_TOP - 6.25), (10.6, RAIL_TOP - 3.5), (10.6, RAIL_TOP - 2.75),
             (7.85, RAIL_TOP), (-7.85, RAIL_TOP), (-10.6, RAIL_TOP - 2.75), (-10.6, RAIL_TOP - 3.5),
             (-7.85, RAIL_TOP - 6.25), (-7.85, top_z - 0.8)]
-    prism(fillet(rail, [0, 0.2, 0.3, 0.3, 0.5, 0.5, 0.3, 0.3, 0.2, 0], 3), 'YZ', 0.0, HG_LEN - 0.8, bm=add)
+    if lod():   # flat bar at the dovetail line; the teeth are added as blocks after the booleans
+        rail = rail[:4] + rail[6:]
+        prism(rail, 'YZ', 0.0, HG_LEN - 0.8, bm=add)
+    else:
+        prism(fillet(rail, [0, 0.2, 0.3, 0.3, 0.5, 0.5, 0.3, 0.3, 0.2, 0], 3), 'YZ', 0.0, HG_LEN - 0.8, bm=add)
     # barrel nut clamp block under the rear of the handguard
     clamp = [(0.0, -18.2), (0.0, -21.5), (4.5, -26.8), (44.5, -26.8), (52.5, -19.0), (52.5, -18.2)]
     prism(fillet(clamp, [0, 4.5, 3.0, 5.0, 6.0, 0], 5), 'XZ', -16.5, 16.5, bm=add)
@@ -138,6 +147,16 @@ def handguard(M):
         merge(qd, c)
     diff(ob, qd)
 
+    if lod():
+        # teeth as blocks; screw counterbores and heads live in the baked maps
+        from ar15lib import merge as _merge
+        me_bm = bmesh.new()
+        me_bm.from_mesh(ob.data)
+        _merge(me_bm, rail_teeth(bmesh.new(), 0.0, HG_LEN - 0.8, HG_RAIL_SLOTS))
+        me_bm.to_mesh(ob.data)
+        me_bm.free()
+        smooth(ob)
+        return ob
     diff(ob, rail_slot_cutters(HG_RAIL_SLOTS, RAIL_TOP - 3.0))
 
     # clamp screw counterbores (right side heads, left side nuts)
@@ -161,6 +180,20 @@ def tube_or_solid(outer, inner):
 def handguard_hardware(M):
     """Steel QD sockets and clamp screws of the handguard."""
     bm = bmesh.new()
+    if lod():
+        for a in (45, 135):
+            c = lathe([(-3.8, 3.0), (-3.8, 4.95), (0.55, 4.95), (0.55, 3.0)], seg=8, axis='Z', center=(63.0, 0.0),
+                      closed=True)
+            c.transform(facet_frame(a))
+            merge(bm, c)
+        for x in (13.0, 39.0):
+            merge(bm, lathe([(-12.8, 0), (-12.8, 3.35), (-16.75, 3.0), (-16.75, 0)], seg=8, axis='Y',
+                            center=(x, -22.3)))
+            merge(bm, lathe([(12.8, 0), (12.8, 3.4), (16.6, 3.4), (16.6, 0.0)], seg=6, axis='Y',
+                            center=(x, -22.3), phase=math.pi / 6))
+        ob = mk('ar15_handguard_hardware', bm, M['steel'])
+        smooth(ob)
+        return ob
     for a in (45, 135):
         c = lathe([(-3.8, 3.0), (-3.8, 4.95), (0.35, 4.95), (0.55, 4.6), (0.55, 3.0)], seg=24,
                   axis='Z', center=(63.0, 0.0), closed=True)
@@ -178,6 +211,9 @@ def handguard_hardware(M):
                  [1.5, 1.5, 1.5, 2.0, 1.5], 3)
     prism(tab, 'XZ', -17.4, -16.0, bm=bm)
     ob = mk('ar15_handguard_hardware', bm, M['steel'])
+    if lod():
+        smooth(ob)
+        return ob
     hexes = bmesh.new()
     for x in (13.0, 39.0):
         cylinder((x, -17.5, -22.3), (x, -14.6, -22.3), 1.6, seg=6, bm=hexes)
@@ -198,7 +234,10 @@ def flash_hider(M):
              (406.2, r), (FH_X1 - 1.0, r), (FH_X1, r - 1.0)]
     inner = [(FH_X1, 5.3), (FH_X1 - 3.2, 5.3), (FH_X1 - 3.2, 7.7), (409.5, 7.7), (408.6, 6.35),
              (FH_X0, 6.35)]
-    ob = mk('ar15_flash_hider', lathe(outer + inner, seg=36, closed=True), M['steel'])
+    if lod():
+        outer = [(FH_X0, 9.6), (FH_X0 + 0.7, r), (FH_X1 - 1.0, r), (FH_X1, r - 1.0)]
+        inner = [(FH_X1, 5.3), (FH_X1 - 3.2, 5.3), (FH_X1 - 3.2, 7.7), (FH_X0, 7.7)]
+    ob = mk('ar15_flash_hider', lathe(outer + inner, seg=36, closed=True, lod_seg=12), M['steel'])
     # five slots, the 6 o'clock port stays closed (A2 pattern)
     cut = bmesh.new()
     for a in (90, 30, 150, -30, 210):

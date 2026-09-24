@@ -9,8 +9,8 @@ import math
 import bmesh
 from mathutils import Matrix, Vector
 
-from ar15lib import (S, bevel, box, cylinder, fillet, lathe, merge, mk, prism, rounded_prism, rrect, smooth,
-                     stadium)
+from ar15lib import (S, bevel, box, cylinder, fillet, lathe, lod, merge, mk, prism, rounded_prism, rrect,
+                     smooth, stadium)
 from parts_front import HG_APO, HG_Z0, facet_frame
 from parts_misc import _knurled_knob, _rail_envelope
 from parts_receivers import RAIL_TOP, diff, union
@@ -98,21 +98,23 @@ def holo_sight(M):
     boolean(tmpb, face, op='INTERSECT')
     from ar15lib import ob_to_bm
     merge(add, ob_to_bm(tmpb))
-    tube_prism([(y, _hz(z)) for y, z in ring_o], [(y, _hz(z)) for y, z in ring_i], 'YZ', _hx(6.6), _hx(9.0),
-               bm=add)
-    # rear cover plate below the rear window
-    prism([(y, _hz(z)) for y, z in rrect(-17.5, 9.0, 17.5, 25.5, 3.0, 3)], 'YZ', _hx(0.4), _hx(2.2), bm=add)
-    # button bezel on the left side
-    prism(_hpts(rrect(3.0, 8.0, 30.5, 21.5, 3.0, 3)), 'XZ', 22.4, 24.6, bm=add)
-    # left end boss of the battery tube
-    cylinder((_hx(71.0), 21.0, _hz(17.5)), (_hx(71.0), 22.6, _hz(17.5)), 9.2, seg=32, bm=add)
+    if not lod():
+        tube_prism([(y, _hz(z)) for y, z in ring_o], [(y, _hz(z)) for y, z in ring_i], 'YZ', _hx(6.6), _hx(9.0),
+                   bm=add)
+    if not lod():   # low (< 2.2 mm) details: baked into the game-mesh textures
+        # rear cover plate below the rear window
+        prism([(y, _hz(z)) for y, z in rrect(-17.5, 9.0, 17.5, 25.5, 3.0, 3)], 'YZ', _hx(0.4), _hx(2.2), bm=add)
+        # button bezel on the left side
+        prism(_hpts(rrect(3.0, 8.0, 30.5, 21.5, 3.0, 3)), 'XZ', 22.4, 24.6, bm=add)
+        # left end boss of the battery tube
+        cylinder((_hx(71.0), 21.0, _hz(17.5)), (_hx(71.0), 22.6, _hz(17.5)), 9.2, seg=32, bm=add)
     union(body, add)
 
     cut = bmesh.new()
     # window tunnel
     prism([(y, _hz(z)) for y, z in ring_i], 'YZ', _hx(-5.0), _hx(100.0), bm=cut)
     # recesses of the elevation (rear, upper) and windage (front, lower) dials on the right side
-    for dx, dz in ((24.5, 33.0), (46.5, 20.5)):
+    for dx, dz in (() if lod() else ((24.5, 33.0), (46.5, 20.5))):
         cylinder((_hx(dx), -24.5, _hz(dz)), (_hx(dx), -21.9, _hz(dz)), 10.6, seg=40, bm=cut)
     # recesses for the two push buttons
     for bx in (9.5, 23.5):
@@ -120,20 +122,21 @@ def holo_sight(M):
     diff(body, cut)
 
     det = bmesh.new()
-    # dial turrets with coin slots
-    for dx, dz in ((24.5, 33.0), (46.5, 20.5)):
+    # dial turrets with coin slots (nearly flush: texture-only on the game mesh)
+    for dx, dz in (() if lod() else ((24.5, 33.0), (46.5, 20.5))):
         lathe([(-22.0, 0), (-22.0, 8.9), (-22.9, 8.9), (-23.3, 8.3), (-23.3, 0)], seg=36, axis='Y',
               center=(_hx(dx), _hz(dz)), bm=det)
         # click-detent ring around the turret
-        for k in range(24):
+        for k in range(0 if lod() else 24):
             a = 2 * math.pi * k / 24
             cx, cz = _hx(dx) + 9.9 * math.cos(a), _hz(dz) + 9.9 * math.sin(a)
             cylinder((cx, -22.4, cz), (cx, -22.9, cz), 0.35, seg=6, bm=det)
     # battery cap on the right end of the hump (knurled, with a raised "+")
     _knurled_knob(det, _hx(71.0), _hz(17.5), 11.4, -27.0, -21.2, teeth=40, depth=0.55)
     cylinder((_hx(71.0), -27.0, _hz(17.5)), (_hx(71.0), -28.4, _hz(17.5)), 9.6, seg=36, bm=det)
-    box(_hx(71.0) - 3.6, -28.9, _hz(17.5) - 0.8, _hx(71.0) + 3.6, -28.2, _hz(17.5) + 0.8, bm=det)
-    box(_hx(71.0) - 0.8, -28.9, _hz(17.5) - 3.6, _hx(71.0) + 0.8, -28.2, _hz(17.5) + 3.6, bm=det)
+    if not lod():
+        box(_hx(71.0) - 3.6, -28.9, _hz(17.5) - 0.8, _hx(71.0) + 3.6, -28.2, _hz(17.5) + 0.8, bm=det)
+        box(_hx(71.0) - 0.8, -28.9, _hz(17.5) - 3.6, _hx(71.0) + 0.8, -28.2, _hz(17.5) + 3.6, bm=det)
     # --- mount: rail clamp with throw lever (left) and cross-bolt nut (right) ---
     base = fillet(_hpts([(1.0, -6.2), (93.0, -6.2), (93.0, 7.5), (1.0, 7.5)]), [1.5, 1.5, 3.0, 3.0], 3)
     prism(base, 'XZ', -17.5, 17.5, bm=det)
@@ -141,9 +144,10 @@ def holo_sight(M):
     prism(lever, 'XZ', 17.2, 20.2, bm=det)
     _knurled_knob(det, _hx(49.0), _hz(0.5), 4.6, -20.0, -17.2, teeth=18, depth=0.4)
     union(body, det)
-    cut2 = _rail_envelope(_hx(-5.0), _hx(100.0))
+    # the mount sits on the rail: the game mesh leaves its hidden rail groove solid
+    cut2 = bmesh.new() if lod() else _rail_envelope(_hx(-5.0), _hx(100.0))
     # coin slots across the dial turrets
-    for dx, dz, a in ((24.5, 33.0, 20.0), (46.5, 20.5, -15.0)):
+    for dx, dz, a in (() if lod() else ((24.5, 33.0, 20.0), (46.5, 20.5, -15.0))):
         b = box(-6.8, -1.2, -1.2, 6.8, 1.2, 1.2)
         b.transform(Matrix.Translation(Vector((_hx(dx), -23.3, _hz(dz))) * S) @ Matrix.Rotation(math.radians(a), 4, 'Y'))
         merge(cut2, b)
@@ -154,6 +158,9 @@ def holo_sight(M):
     # push buttons (rubber) with arrow reliefs
     bb = bmesh.new()
     for bx, up in ((9.5, False), (23.5, True)):
+        if lod():   # plain pads; the arrows are baked
+            box(_hx(bx - 4.8), 23.4, _hz(9.9), _hx(bx + 4.8), 25.6, _hz(19.6), bm=bb)
+            continue
         prism(_hpts(rrect(bx - 4.8, 9.9, bx + 4.8, 19.6, 1.8, 3)), 'XZ', 23.4, 25.6, bm=bb)
         tip, bot = (17.4, 12.1) if up else (12.1, 17.4)
         prism(_hpts([(bx - 2.6, bot), (bx + 2.6, bot), (bx, tip)]), 'XZ', 25.5, 26.0, bm=bb)
@@ -161,7 +168,8 @@ def holo_sight(M):
     bevel(btn, 0.3, seg=1, angle=40)
     smooth(btn)
 
-    # screws: rear cover (4), left side (2), right rear (1)
+    # screws: rear cover (4), left side (2), right rear (1); baked into the textures on the game mesh
+    parts_extra = []
     sb = bmesh.new()
     for y in (-14.5, 14.5):
         for z in (11.5, 23.0):
@@ -169,8 +177,12 @@ def holo_sight(M):
     for x in (38.6, 62.7):
         _screw(sb, (_hx(x), 21.3 if x > 50 else 22.8, _hz(10.5)), '+Y', 2.1, 0.8)
     _screw(sb, (_hx(6.5), -19.8, _hz(13.0)), '-Y', 2.0, 0.8)
-    scr = mk('ar15_att_holo_screws', sb, M['steel'])
-    smooth(scr, angle=40)
+    if lod():
+        sb.free()
+    else:
+        scr = mk('ar15_att_holo_screws', sb, M['steel'])
+        smooth(scr, angle=40)
+        parts_extra.append(scr)
 
     # glass and reticle
     glass = bmesh.new()
@@ -181,17 +193,35 @@ def holo_sight(M):
     zc = _hz(wz)
     xr = _hx(54.0) - 0.8
     ret = bmesh.new()
-    ring_o2 = [(3.6 * math.cos(2 * math.pi * k / 48), 3.6 * math.sin(2 * math.pi * k / 48)) for k in range(48)]
-    ring_i2 = [(3.2 * math.cos(2 * math.pi * k / 48), 3.2 * math.sin(2 * math.pi * k / 48)) for k in range(48)]
+    nr = 16 if lod() else 48
+    if lod():
+        # flat emissive ring + dot facing the shooter
+        vo = [ret.verts.new(Vector((xr, 3.6 * math.cos(2 * math.pi * k / nr), zc + 3.6 * math.sin(2 * math.pi * k / nr))) * S)
+              for k in range(nr)]
+        vi = [ret.verts.new(Vector((xr, 3.2 * math.cos(2 * math.pi * k / nr), zc + 3.2 * math.sin(2 * math.pi * k / nr))) * S)
+              for k in range(nr)]
+        for k in range(nr):
+            j = (k + 1) % nr
+            ret.faces.new((vo[k], vo[j], vi[j], vi[k]))
+        ret.faces.new([ret.verts.new(Vector((xr, 0.45 * math.cos(2 * math.pi * k / 6), zc + 0.45 * math.sin(2 * math.pi * k / 6))) * S)
+                       for k in range(6)])
+        for f in ret.faces:
+            f.normal_update()
+            if f.normal.x > 0:
+                f.normal_flip()
+        r = mk('ar15_att_holo_reticle', ret, M['reticle'])
+        return [body, btn] + parts_extra + [g, r]
+    ring_o2 = [(3.6 * math.cos(2 * math.pi * k / nr), 3.6 * math.sin(2 * math.pi * k / nr)) for k in range(nr)]
+    ring_i2 = [(3.2 * math.cos(2 * math.pi * k / nr), 3.2 * math.sin(2 * math.pi * k / nr)) for k in range(nr)]
     tube_prism([(y, zc + z) for y, z in ring_o2], [(y, zc + z) for y, z in ring_i2], 'YZ', xr - 0.2, xr, bm=ret)
     cylinder((xr - 0.2, 0.0, zc), (xr, 0.0, zc), 0.42, seg=12, bm=ret)
-    for a in (0, 90, 180, 270):
+    for a in (() if lod() else (0, 90, 180, 270)):
         c, s_ = math.cos(math.radians(a)), math.sin(math.radians(a))
         pts = [(c * 2.3 - s_ * 0.18, s_ * 2.3 + c * 0.18), (c * 3.1 - s_ * 0.18, s_ * 3.1 + c * 0.18),
                (c * 3.1 + s_ * 0.18, s_ * 3.1 - c * 0.18), (c * 2.3 + s_ * 0.18, s_ * 2.3 - c * 0.18)]
         prism([(y, zc + z) for y, z in pts], 'YZ', xr - 0.2, xr, bm=ret)
     r = mk('ar15_att_holo_reticle', ret, M['reticle'])
-    return [body, btn, scr, g, r]
+    return [body, btn] + parts_extra + [g, r]
 
 
 # ---------------------------------------------------------------------------
@@ -219,13 +249,13 @@ def foregrip(M):
     prism(stadium(xf - 60.0, zt - 6.2, 34.0, 4.2, seg=6), 'XZ', -20.0, 20.0, bm=cut)
     # grip grooves across the sloped front face and the rear stop
     ang = math.atan2(-34.0, -15.5)
-    for k in range(6):
+    for k in range(0 if lod() else 6):
         t = 0.2 + k * 0.13
         px, pz = xf + 1.0 - 15.5 * t, zt - 6.0 - 34.0 * t
         b = box(-0.8, -20.0, -1.4, 0.8, 20.0, 1.4)
         b.transform(Matrix.Translation(Vector((px, 0.0, pz)) * S) @ Matrix.Rotation(-ang, 4, 'Y'))
         merge(cut, b)
-    for k in range(3):
+    for k in range(0 if lod() else 3):
         pz = zt - 9.0 - k * 5.0
         box(xf - 111.5, -20.0, pz - 0.8, xf - 109.2, 20.0, pz + 0.8, bm=cut)
     # serrations along the curved underside (finger rest), 0.9 mm deep
@@ -237,7 +267,7 @@ def foregrip(M):
                 return z0 + (z1 - z0) * (x - x0) / (x1 - x0)
         return arc[-1][1]
 
-    for k in range(10):
+    for k in range(0 if lod() else 10):
         x = -45.0 - k * 4.4
         zb = bottom(x)
         box(xf + x - 0.7, -20.0, zt + zb - 6.0, xf + x + 0.7, 20.0, zt + zb + 0.9, bm=cut)
@@ -247,6 +277,8 @@ def foregrip(M):
     from ar15lib import mirror_x
     mirror_x(grip, GRIP_X)
     smooth(grip, angle=35)
+    if lod():
+        return [grip]       # the T-nuts sit inside the handguard
 
     tn = bmesh.new()
     for x in GRIP_TNUTS:
@@ -284,7 +316,7 @@ def _ax(a):
 def _light_lathe(prof, seg=48, closed=True, bm=None):
     """Lathe around the light axis; prof holds (a, r) pairs, a measured back from the bezel."""
     return lathe([(_ax(a), r) for a, r in prof], seg=seg, axis='X', center=(LIGHT_Y, LIGHT_Z), closed=closed,
-                 bm=bm)
+                 bm=bm, lod_seg=12)
 
 
 def _knurl_sleeve(a0, a1, r_peak, depth, r_in, n=96):
@@ -329,6 +361,13 @@ def _rail_section(x0, x1):
     h = FL_RAIL_H
     sec = [(7.85, -0.6), (7.85, h - 6.25), (10.6, h - 3.5), (10.6, h - 2.75), (7.85, h), (-7.85, h),
            (-10.6, h - 2.75), (-10.6, h - 3.5), (-7.85, h - 6.25), (-7.85, -0.6)]
+    if lod():
+        from parts_receivers import rail_teeth
+        bm = prism(sec[:4] + sec[6:], 'YZ', x0, x1)
+        rail_teeth(bm, x0, x1, [FL_SLOT_X + 10.0 * k for k in range(-2, 3)], top=h)
+        fr = facet_frame(180)
+        bm.transform(fr)
+        return bm, None
     bm = prism(fillet(sec, [0, 0.2, 0.3, 0.3, 0.5, 0.5, 0.3, 0.3, 0.2, 0], 3), 'YZ', x0, x1)
     cut = bmesh.new()
     for k in range(-2, 3):
@@ -346,11 +385,16 @@ def _rail_section(x0, x1):
 
 def _knob_z(bm, cx, cy, z0, z1, r, teeth=30, depth=0.45):
     """Knurled thumbscrew knob with its axis along Z (chamfered top)."""
+    if lod():
+        teeth, depth = 5, 0.0
     pts = []
     for k in range(teeth * 2):
         t = math.pi * k / teeth
         rr = r if k % 2 == 0 else r - depth
         pts.append((cx + rr * math.cos(t), cy + rr * math.sin(t)))
+    if lod():
+        prism(pts, 'XY', z0, z1, bm=bm)
+        return
     prism(pts, 'XY', z0, z1 - 0.9, bm=bm)
     lathe([(z1 - 1.0, 0.0), (z1 - 1.0, r - 0.3), (z1, r - 1.2), (z1, 0.0)], seg=32, axis='Z', center=(cx, cy),
           bm=bm)
@@ -362,19 +406,27 @@ def flashlight(M):
     # starts at the bottom of the reflector cavity so the lens opening stays hollow
     prof = [(10.5, 0.0), (10.5, 12.9), (1.2, 12.9), (0.0, 13.35), (0.0, 14.6), (0.25, 15.35), (0.7, 15.9),
             (1.4, 16.1), (20.5, 16.1)]
-    for c in (21.85, 25.05, 28.25, 31.45):
-        prof += [(c - 1.1, 16.1), (c - 0.85, 16.8), (c - 0.55, 17.1), (c + 0.55, 17.1), (c + 0.85, 16.8),
-                 (c + 1.1, 16.1)]
-    prof += [(39.7, 16.1), (40.4, 15.85), (42.0, 14.85), (43.8, 13.75), (44.8, 13.35), (45.6, 13.25),
-             (53.4, 13.25), (53.7, 12.45), (54.9, 12.45), (55.4, 12.9), (84.6, 12.9), (84.8, 11.85),
-             (108.9, 11.85), (108.9, 0.0)]
+    if lod():
+        # game mesh: the fins become one band, their grooves live in the normal map
+        prof = [(10.5, 0.0), (10.5, 12.9), (1.2, 12.9), (0.0, 13.35), (0.3, 15.6), (20.6, 16.1), (21.0, 17.0),
+                (32.2, 17.0), (32.6, 16.1), (39.8, 16.1), (45.6, 13.25), (84.6, 12.9), (85.0, 12.4), (107.6, 12.4),
+                (108.0, 11.9), (115.0, 11.9), (117.3, 10.9), (117.3, 7.5), (117.9, 4.5), (117.9, 0.0)]
+    else:
+        for c in (21.85, 25.05, 28.25, 31.45):
+            prof += [(c - 1.1, 16.1), (c - 0.85, 16.8), (c - 0.55, 17.1), (c + 0.55, 17.1), (c + 0.85, 16.8),
+                     (c + 1.1, 16.1)]
+        prof += [(39.7, 16.1), (40.4, 15.85), (42.0, 14.85), (43.8, 13.75), (44.8, 13.35), (45.6, 13.25),
+                 (53.4, 13.25), (53.7, 12.45), (54.9, 12.45), (55.4, 12.9), (84.6, 12.9), (84.8, 11.85),
+                 (108.9, 11.85), (108.9, 0.0)]
     body = mk('ar15_att_light_body', _light_lathe(prof, seg=56), M['alu'])
     smooth(body, angle=35)
     parts.append(body)
 
     # --- clamp ring with the rail saddle and the cross-bolt jaws ---
-    mb = _light_lathe([(55.4, 12.7), (55.4, 13.5), (56.0, 14.2), (56.8, 14.7), (82.2, 14.7), (83.2, 13.9),
-                       (84.2, 12.7)], seg=56)
+    ring = [(55.4, 12.7), (55.4, 13.5), (56.0, 14.2), (56.8, 14.7), (82.2, 14.7), (83.2, 13.9), (84.2, 12.7)]
+    if lod():
+        ring = [(55.4, 12.7), (55.4, 13.5), (56.8, 14.7), (82.2, 14.7), (84.2, 12.7)]
+    mb = _light_lathe(ring, seg=56)
     rail_top_y = -(HG_SIDE_Y + FL_RAIL_H)
     xa, xb = FL_SLOT_X - 11.0, FL_SLOT_X + 11.0
     box(xa, LIGHT_Y + 9.0, LIGHT_Z - 13.6, xb, rail_top_y, LIGHT_Z + 13.6, bm=mb)
@@ -384,16 +436,21 @@ def flashlight(M):
     mount = mk('ar15_att_light_mount', mb, M['alu'])
     rail, rail_cut = _rail_section(FL_SLOT_X - 22.5, FL_SLOT_X + 22.5)
     # clearance for the rail inside the clamp
-    tmp = mk('_rail_env', rail.copy())
-    from ar15lib import ob_to_bm
-    env = ob_to_bm(tmp)
+    if lod():
+        env = box(FL_SLOT_X - 30.0, -(HG_SIDE_Y + FL_RAIL_H), LIGHT_Z - 10.8, FL_SLOT_X + 30.0, -HG_SIDE_Y + 1.0,
+                  LIGHT_Z + 10.8)
+    else:
+        tmp = mk('_rail_env', rail.copy())
+        from ar15lib import ob_to_bm
+        env = ob_to_bm(tmp)
     diff(mount, env)
     bevel(mount, 0.5, seg=2, angle=30)
     smooth(mount)
     parts.append(mount)
 
     rail_ob = mk('ar15_att_light_rail', rail, M['alu'])
-    diff(rail_ob, rail_cut)
+    if rail_cut is not None:
+        diff(rail_ob, rail_cut)
     bevel(rail_ob, 0.3, seg=1, angle=35)
     smooth(rail_ob)
     parts.append(rail_ob)
@@ -415,38 +472,49 @@ def flashlight(M):
     parts.append(nut)
 
     # --- diamond-knurled grip section ---
-    kn = mk('ar15_att_light_knurl', _knurl_sleeve(85.0, 107.6, 12.55, 0.38, 11.7), M['alu'])
-    smooth(kn, angle=12, weighted=False)
-    parts.append(kn)
+    if not lod():   # the game mesh carries grip and tail cap in the body profile
+        kn = mk('ar15_att_light_knurl', _knurl_sleeve(85.0, 107.6, 12.55, 0.38, 11.7), M['alu'])
+        smooth(kn, angle=12, weighted=False)
+        parts.append(kn)
 
     # --- tail cap with crenellated rim ---
-    tc = _light_lathe([(108.6, 11.2), (108.6, 11.45), (109.0, 11.9), (114.9, 11.9), (115.7, 11.55),
-                       (117.1, 11.0), (117.3, 10.3), (117.3, 8.7), (115.6, 8.4), (115.6, 0.0), (108.6, 0.0)],
-                      seg=48)
-    tail = mk('ar15_att_light_tailcap', tc, M['alu'])
-    notches = bmesh.new()
-    for k in range(6):
-        t = math.radians(30 + 60 * k)
-        b = box(_ax(118.5), -1.6, 7.5, _ax(115.9), 1.6, 13.5)
-        b.transform(Matrix.Translation(Vector((0.0, LIGHT_Y, LIGHT_Z)) * S) @ Matrix.Rotation(t, 4, 'X'))
-        merge(notches, b)
-    diff(tail, notches)
-    bevel(tail, 0.35, seg=2, angle=30)
-    smooth(tail)
-    parts.append(tail)
+    if not lod():
+        tc = _light_lathe([(108.6, 11.2), (108.6, 11.45), (109.0, 11.9), (114.9, 11.9), (115.7, 11.55),
+                           (117.1, 11.0), (117.3, 10.3), (117.3, 8.7), (115.6, 8.4), (115.6, 0.0), (108.6, 0.0)],
+                          seg=48)
+        tail = mk('ar15_att_light_tailcap', tc, M['alu'])
+        notches = bmesh.new()
+        for k in range(6):
+            t = math.radians(30 + 60 * k)
+            b = box(_ax(118.5), -1.6, 7.5, _ax(115.9), 1.6, 13.5)
+            b.transform(Matrix.Translation(Vector((0.0, LIGHT_Y, LIGHT_Z)) * S) @ Matrix.Rotation(t, 4, 'X'))
+            merge(notches, b)
+        diff(tail, notches)
+        bevel(tail, 0.35, seg=2, angle=30)
+        smooth(tail)
+        parts.append(tail)
 
-    sw = mk('ar15_att_light_switch', _light_lathe([(115.3, 0.0), (115.3, 7.6), (116.9, 7.6), (117.5, 6.7),
-                                                   (117.85, 4.5), (117.9, 0.0)], seg=40, closed=False),
-            M['rubber'])
-    smooth(sw, angle=40)
-    parts.append(sw)
+    if not lod():   # merged into the body profile on the game mesh
+        sw_prof = [(115.3, 0.0), (115.3, 7.6), (116.9, 7.6), (117.5, 6.7), (117.85, 4.5), (117.9, 0.0)]
+        sw = mk('ar15_att_light_switch', _light_lathe(sw_prof, seg=40, closed=False), M['rubber'])
+        smooth(sw, angle=40)
+        parts.append(sw)
 
     # --- optics: glass, chrome reflector, LED ---
     gl = mk('ar15_att_light_glass', _light_lathe([(0.75, 0.0), (0.75, 13.1), (1.05, 13.1), (1.05, 0.0)], seg=48,
                                                  closed=False), M['glass'])
     parts.append(gl)
-    rf = _light_lathe([(1.15, 12.95), (3.0, 10.6), (5.5, 7.3), (7.8, 4.5), (9.0, 3.0), (9.6, 3.0), (9.6, 0.0),
-                       (9.9, 0.0), (9.9, 3.3), (8.2, 4.8), (5.9, 7.7), (3.4, 11.0), (1.5, 13.2)], seg=48)
+    if lod():
+        rf = lathe([(_ax(a), r) for a, r in ((9.6, 0.0), (9.0, 3.0), (5.0, 8.4), (1.15, 12.95))], seg=12,
+                   axis='X', center=(LIGHT_Y, LIGHT_Z), caps=False)
+        front = Vector((_ax(-30.0), LIGHT_Y, LIGHT_Z)) * S
+        for f in rf.faces:
+            if f.normal.dot(front - f.calc_center_median()) < 0:
+                f.normal_flip()
+    else:
+        rf = _light_lathe([(1.15, 12.95), (3.0, 10.6), (5.5, 7.3), (7.8, 4.5), (9.0, 3.0), (9.6, 3.0),
+                           (9.6, 0.0), (9.9, 0.0), (9.9, 3.3), (8.2, 4.8), (5.9, 7.7), (3.4, 11.0), (1.5, 13.2)],
+                          seg=48)
     ref = mk('ar15_att_light_reflector', rf, M['chrome'])
     smooth(ref, angle=40)
     parts.append(ref)
@@ -477,13 +545,15 @@ def laser(M):
     add = bmesh.new()
     # M-LOK plate
     prism(stadium(SIDE_SLOT_X, SIDE_Z, 34.0, 15.0, seg=6), 'XZ', HG_SIDE_Y - 0.3, LASER_Y0 + 0.6, bm=add)
-    # rear activation button
-    prism(rrect(LASER_Y0 + 5.0, SIDE_Z - 5.0, LASER_Y1 - 5.0, SIDE_Z + 5.0, 2.5), 'YZ', LASER_X0 - 1.6,
-          LASER_X0 + 0.5, bm=add)
-    # adjuster caps on top and on the outer side
-    cylinder((350.0, LASER_Y0 + 11.0, LASER_Z1 - 0.5), (350.0, LASER_Y0 + 11.0, LASER_Z1 + 1.6), 3.4, seg=20,
-             bm=add)
-    cylinder((362.0, LASER_Y1 - 0.5, SIDE_Z + 4.0), (362.0, LASER_Y1 + 1.6, SIDE_Z + 4.0), 3.4, seg=20, bm=add)
+    if not lod():
+        # rear activation button
+        prism(rrect(LASER_Y0 + 5.0, SIDE_Z - 5.0, LASER_Y1 - 5.0, SIDE_Z + 5.0, 2.5), 'YZ', LASER_X0 - 1.6,
+              LASER_X0 + 0.5, bm=add)
+        # adjuster caps on top and on the outer side
+        cylinder((350.0, LASER_Y0 + 11.0, LASER_Z1 - 0.5), (350.0, LASER_Y0 + 11.0, LASER_Z1 + 1.6), 3.4, seg=20,
+                 bm=add)
+        cylinder((362.0, LASER_Y1 - 0.5, SIDE_Z + 4.0), (362.0, LASER_Y1 + 1.6, SIDE_Z + 4.0), 3.4, seg=20,
+                 bm=add)
     # battery cap on the outer side
     _knurled_knob(add, 346.0, SIDE_Z - 3.0, 6.2, LASER_Y1 - 0.5, LASER_Y1 + 1.8, teeth=22, depth=0.45)
     union(ob, add)

@@ -4,7 +4,7 @@ import math
 import bmesh
 from mathutils import Matrix, Vector
 
-from ar15lib import (S, bevel, boolean, box, cylinder, fillet, inset_outline, lathe, merge, mk, prism,
+from ar15lib import (S, bevel, boolean, box, cylinder, fillet, inset_outline, lathe, lod, merge, mk, prism,
                      rrect, smooth, stadium)
 from parts_receivers import RAIL_TOP, diff, union
 
@@ -34,6 +34,9 @@ def magazine(M):
     rad = [1.5, 1.5] + [2.0, 3.0] + [0] * 10 + [2.0, 2.5, 3.0, 2.5] + [2.0] + [0] * 13 + [2.0]
     rad = rad[:len(body)] + [0] * (len(body) - len(rad))
     outline = fillet(body, rad, 4)
+    if lod():
+        from ar15lib import simplify_outline
+        outline = simplify_outline(outline, 0.45)
     # narrow upper part fits the magazine well, wider body below it
     ob = mk('ar15_magazine', prism(outline, 'XZ', -11.1, 11.1), M['polymer'])
     lower = prism(inset_outline(outline, -0.2), 'XZ', -12.9, 12.9)
@@ -49,7 +52,7 @@ def magazine(M):
 
     # recessed texture panels on both sides, following the curve
     cut = bmesh.new()
-    rows = [(-85.5, -102.5), (-106.0, -123.0), (-126.5, -143.5), (-147.0, -162.0)]
+    rows = [] if lod() else [(-85.5, -102.5), (-106.0, -123.0), (-126.5, -143.5), (-147.0, -162.0)]
     cols = [(0.07, 0.46), (0.54, 0.93)]
     for z0, z1 in rows:
         for u0, u1 in cols:
@@ -84,12 +87,16 @@ def cartridge(M, x_rear=-73.6, z=-11.0, y=0.0):
     L = 57.4
     case = [(0.0, 0), (0.0, 4.25), (0.6, 4.75), (1.2, 4.75), (1.2, 4.2), (2.3, 4.2), (3.0, 4.77),
             (39.5, 4.55), (41.2, 3.2), (44.7, 3.2), (44.7, 0)]
-    bm = lathe(case, seg=24)
+    if lod():
+        case = [(0.0, 0), (0.0, 4.75), (39.5, 4.55), (41.2, 3.2), (44.7, 3.2), (44.7, 0)]
+    bm = lathe(case, seg=24, lod_seg=6)
     bm.transform(Matrix.Translation(Vector((x_rear, y, z)) * S))
     co = mk('ar15_cartridge_case', bm, M['brass'])
     smooth(co, angle=40)
     bul = [(44.2, 0), (44.2, 2.85), (47.0, 2.85), (52.0, 2.4), (55.5, 1.3), (L, 0.25), (L, 0)]
-    bb = lathe(bul, seg=24)
+    if lod():
+        bul = [(44.2, 0), (44.2, 2.85), (52.0, 2.4), (L, 0.25), (L, 0)]
+    bb = lathe(bul, seg=24, lod_seg=6)
     bb.transform(Matrix.Translation(Vector((x_rear, y, z)) * S))
     bo = mk('ar15_cartridge_bullet', bb, M['copper'])
     smooth(bo, angle=40)
@@ -108,6 +115,8 @@ def _rail_envelope(x0, x1, clr=0.12):
 
 
 def _knurled_knob(bm, cx, cz, r, y0, y1, teeth=24, depth=0.45):
+    if lod():       # knurling comes from the baked normal map
+        teeth, depth = 5, 0.0
     pts = []
     for k in range(teeth * 2):
         a = math.pi * k / teeth
@@ -122,18 +131,21 @@ def rear_sight(M):
             (-141.5, 45.4), (-149.0, 44.2), (-155.5, 40.5), (-158.0, 34.0), (-178.0, 34.0)]
     ob = mk('ar15_rear_sight_base',
             prism(fillet(base, [1, 1, 1.5, 2, 3, 3, 3, 3, 2, 2, 1.5], 4), 'XZ', -12.8, 12.8), M['polymer'])
-    diff(ob, _rail_envelope(-190, -100))
+    if not lod():   # hidden where the base sits on the rail
+        diff(ob, _rail_envelope(-190, -100))
     cut = bmesh.new()
     # channel for the leaf between the base cheeks (deployed and folded)
     box(-159.5, -10.3, 33.0, -108.0, 10.3, 50.0, bm=cut)
     # relief in the right cheek for the windage drum when folded
-    cylinder((-128.8, -16.5, 39.0), (-128.8, -9.0, 39.0), 6.9, seg=24, bm=cut)
+    if not lod():
+        cylinder((-128.8, -16.5, 39.0), (-128.8, -9.0, 39.0), 6.9, seg=24, bm=cut)
     diff(ob, cut)
     add = bmesh.new()
     _knurled_knob(add, -140.5, 37.0, 4.3, -16.2, -12.3)
     cylinder((-140.5, 12.3, 37.0), (-140.5, 14.6, 37.0), 4.0, seg=20, bm=add)
     # leaf hinge pin
-    cylinder((-151.8, -13.3, 40.2), (-151.8, 13.3, 40.2), 1.8, seg=14, bm=add)
+    if not lod():
+        cylinder((-151.8, -13.3, 40.2), (-151.8, 13.3, 40.2), 1.8, seg=14, bm=add)
     union(ob, add)
     bevel(ob, 0.45, seg=2, angle=30)
     smooth(ob)
@@ -149,12 +161,14 @@ def rear_sight(M):
     prism(fillet([(-155.0, 55.0), (-147.2, 55.0), (-146.8, 70.5), (-155.2, 70.5)], 1.2, 2), 'XZ', -5.8, 5.8,
           bm=leaf)
     lo = mk('ar15_rear_sight_leaf', leaf, M['polymer'])
-    ap = bmesh.new()
-    cylinder((-160.0, 0, 64.5), (-142.0, 0, 64.5), 1.1, seg=16, bm=ap)
-    diff(lo, ap)
+    if not lod():
+        ap = bmesh.new()
+        cylinder((-160.0, 0, 64.5), (-142.0, 0, 64.5), 1.1, seg=16, bm=ap)
+        diff(lo, ap)
     kn = bmesh.new()
     _knurled_knob(kn, -150.6, 63.2, 6.2, -14.4, -9.7, teeth=28)
-    cylinder((-150.6, -9.9, 63.2), (-150.6, -5.5, 63.2), 3.0, seg=16, bm=kn)
+    if not lod():
+        cylinder((-150.6, -9.9, 63.2), (-150.6, -5.5, 63.2), 3.0, seg=16, bm=kn)
     union(lo, kn)
     bevel(lo, 0.35, seg=2, angle=30)
     smooth(lo)
@@ -167,12 +181,14 @@ def front_sight(M):
             (354.5, 43.4), (349.0, 42.8), (336.0, 41.5), (322.0, 38.5), (318.0, 34.0)]
     ob = mk('ar15_front_sight_base',
             prism(fillet(base, [1, 1, 2, 3, 3, 3, 3, 2, 3, 3, 1.5], 4), 'XZ', -12.8, 12.8), M['polymer'])
-    diff(ob, _rail_envelope(305, 385))
+    if not lod():
+        diff(ob, _rail_envelope(305, 385))
     diff(ob, box(314.0, -10.3, 33.0, 353.8, 10.3, 50.0))
     add = bmesh.new()
     _knurled_knob(add, 363.5, 37.8, 5.2, -16.4, -12.3)
     cylinder((363.5, 12.3, 37.8), (363.5, 14.6, 37.8), 4.2, seg=20, bm=add)
-    cylinder((347.0, -13.3, 40.2), (347.0, 13.3, 40.2), 1.8, seg=14, bm=add)
+    if not lod():
+        cylinder((347.0, -13.3, 40.2), (347.0, 13.3, 40.2), 1.8, seg=14, bm=add)
     union(ob, add)
     bevel(ob, 0.45, seg=2, angle=30)
     smooth(ob)

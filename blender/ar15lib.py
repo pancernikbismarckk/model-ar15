@@ -17,6 +17,45 @@ from mathutils import Matrix, Vector
 
 S = 0.001  # millimetres -> metres
 
+# Detail level. The high-poly source is built with lod=False; the game mesh (FiveM, <10k tris)
+# is built by the same part builders with lod=True: fewer segments on revolved parts, corner
+# rounding by chord tolerance, no micro-bevels, and micro details left to the baked normal map.
+DETAIL = {'lod': False, 'suffix': ''}
+LOD_TOL = 0.5           # mm, max chord deviation of rounded corners in the game mesh
+
+
+def set_lod(on, suffix='__lod'):
+    DETAIL['lod'] = bool(on)
+    DETAIL['suffix'] = suffix if on else ''
+
+
+def lod():
+    return DETAIL['lod']
+
+
+def rev_seg(seg, lod_seg=None):
+    """Segments around a revolved part for the current detail level (hex/octagonal shapes kept)."""
+    if not DETAIL['lod']:
+        return seg
+    if lod_seg:
+        return lod_seg
+    if seg <= 8:
+        return seg
+    return max(8, int(round(seg * 0.3 / 2.0)) * 2)
+
+
+def arc_segs(r, turn, seg):
+    """Segments of a rounded corner (radius r, turning angle in radians); 0 = keep it sharp."""
+    if not DETAIL['lod']:
+        return seg
+    if r < 1.0:
+        return 0
+    c = 1.0 - LOD_TOL / r
+    if c <= 0.0:
+        return 1
+    step = 2.0 * math.acos(c)
+    return max(1, min(seg, int(math.ceil(turn / step - 1e-6))))
+
 
 # ---------------------------------------------------------------------------
 # 2D helpers
@@ -51,6 +90,10 @@ def fillet(pts, radii, seg=6):
         t = r / math.tan(ang / 2)
         t = min(t, e1.length * 0.5, e2.length * 0.5)
         r_eff = t * math.tan(ang / 2)
+        nseg = arc_segs(r_eff, math.pi - ang, seg)
+        if nseg == 0:
+            out.append((p1.x, p1.y))
+            continue
         a = p1 + d1 * t
         b = p1 + d2 * t
         bis = (d1 + d2).normalized()
@@ -62,8 +105,8 @@ def fillet(pts, radii, seg=6):
             da -= 2 * math.pi
         while da < -math.pi:
             da += 2 * math.pi
-        for k in range(seg + 1):
-            tt = a0 + da * k / seg
+        for k in range(nseg + 1):
+            tt = a0 + da * k / nseg
             out.append((c.x + r_eff * math.cos(tt), c.y + r_eff * math.sin(tt)))
     return dedupe(out)
 
@@ -85,6 +128,7 @@ def arc(cx, cy, r, a0, a1, seg):
 
 
 def circle(cx, cy, r, seg=24, start=0.0):
+    seg = rev_seg(seg)
     return [(cx + r * math.cos(start + 2 * math.pi * k / seg),
              cy + r * math.sin(start + 2 * math.pi * k / seg)) for k in range(seg)]
 
@@ -93,7 +137,13 @@ def stadium(cx, cy, length, width, angle=0.0, seg=8):
     """Slot outline (rounded rectangle with full-round ends), centred on (cx, cy)."""
     r = width / 2
     h = max(length / 2 - r, 0)
-    pts = arc(h, 0, r, -90, 90, seg) + arc(-h, 0, r, 90, 270, seg)
+    if DETAIL['lod'] and width <= 10.0:
+        e = h + 0.6 * r
+        pts = [(e, -r), (e, r), (-e, r), (-e, -r)]
+    else:
+        if DETAIL['lod']:
+            seg = max(2, arc_segs(r, math.pi, seg))
+        pts = arc(h, 0, r, -90, 90, seg) + arc(-h, 0, r, 90, 270, seg)
     ca, sa = math.cos(angle), math.sin(angle)
     return [(cx + x * ca - y * sa, cy + x * sa + y * ca) for x, y in pts]
 
@@ -155,13 +205,43 @@ def prism(pts, plane, d0, d1, bm=None):
     return bm
 
 
+def _arc_params(loop):
+    d = [0.0]
+    for i in range(1, len(loop) + 1):
+        a, b = loop[i - 1], loop[i % len(loop)]
+        d.append(d[-1] + math.hypot(b[0] - a[0], b[1] - a[1]))
+    total = d[-1] or 1.0
+    return [x / total for x in d[:-1]], d, total
+
+
+def _point_at(loop, t, d, total):
+    s = t * total
+    for i in range(len(loop)):
+        if d[i + 1] >= s - 1e-9:
+            a, b = loop[i], loop[(i + 1) % len(loop)]
+            seg = d[i + 1] - d[i]
+            u = 0.0 if seg < 1e-12 else (s - d[i]) / seg
+            return (a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u)
+    return loop[-1]
+
+
+def match_loops(a, b):
+    """Give two similar closed loops the same point count, pairing points by arc length."""
+    if len(a) == len(b):
+        return a, b
+    ta, da, la = _arc_params(a)
+    tb, db, lb = _arc_params(b)
+    ts = sorted(set(round(t, 6) for t in ta + tb))
+    return ([_point_at(a, t, da, la) for t in ts], [_point_at(b, t, db, lb) for t in ts])
+
+
 def tube_prism(outer, inner, plane, d0, d1, bm=None):
-    """Extrude a 2D ring (outer and inner loops with equal point counts)."""
+    """Extrude a 2D ring given by an outer and an inner loop (paired by arc length)."""
     own = bm is None
     if own:
         bm = bmesh.new()
     f = _plane_map(plane)
-    assert len(outer) == len(inner)
+    outer, inner = match_loops(dedupe(outer), dedupe(inner))
     n = len(outer)
     oa = [bm.verts.new(f(p[0], p[1], d0)) for p in outer]
     ob = [bm.verts.new(f(p[0], p[1], d1)) for p in outer]
@@ -178,7 +258,8 @@ def tube_prism(outer, inner, plane, d0, d1, bm=None):
     return bm
 
 
-def lathe(profile, seg=32, bm=None, axis='X', center=(0.0, 0.0), phase=0.0, closed=False):
+def lathe(profile, seg=32, bm=None, axis='X', center=(0.0, 0.0), phase=0.0, closed=False, lod_seg=None,
+          caps=True):
     """Revolve a profile of (axial, radius) points (mm) around an axis.
 
     The profile is an open polyline from one end of the part to the other;
@@ -191,6 +272,7 @@ def lathe(profile, seg=32, bm=None, axis='X', center=(0.0, 0.0), phase=0.0, clos
     own = bm is None
     if own:
         bm = bmesh.new()
+    seg = rev_seg(seg, lod_seg)
 
     def P(ax, r, t):
         c, s = math.cos(t), math.sin(t)
@@ -223,15 +305,16 @@ def lathe(profile, seg=32, bm=None, axis='X', center=(0.0, 0.0), phase=0.0, clos
                 geom.append(bm.faces.new((r0[k], r0[k2], r1[0])))
             else:
                 geom.append(bm.faces.new((r0[k], r0[k2], r1[k2], r1[k])))
-    if not closed and len(rings[0]) > 1:
+    if caps and not closed and len(rings[0]) > 1:
         geom.append(bm.faces.new(list(reversed(rings[0]))))
-    if not closed and len(rings[-1]) > 1:
+    if caps and not closed and len(rings[-1]) > 1:
         geom.append(bm.faces.new(rings[-1]))
-    bmesh.ops.recalc_face_normals(bm, faces=geom)
+    if caps:
+        bmesh.ops.recalc_face_normals(bm, faces=geom)
     return bm
 
 
-def cylinder(p0, p1, r, seg=24, bm=None, r1=None):
+def cylinder(p0, p1, r, seg=24, bm=None, r1=None, lod_seg=None):
     """Closed cylinder (or cone when r1 is given) between two points (mm)."""
     own = bm is None
     if own:
@@ -239,7 +322,7 @@ def cylinder(p0, p1, r, seg=24, bm=None, r1=None):
     p0 = Vector(p0)
     p1 = Vector(p1)
     L = (p1 - p0).length
-    tmp = lathe([(0, r), (L, r if r1 is None else r1)], seg=seg, axis='Z')
+    tmp = lathe([(0, r), (L, r if r1 is None else r1)], seg=seg, axis='Z', lod_seg=lod_seg)
     rot = Vector((0, 0, 1)).rotation_difference((p1 - p0).normalized()).to_matrix().to_4x4()
     tmp.transform(Matrix.Translation(p0 * S) @ rot)
     merge(bm, tmp)
@@ -255,6 +338,8 @@ def sphere(c, r, seg=16, rings=8, bm=None):
     if own:
         bm = bmesh.new()
     tmp = bmesh.new()
+    if DETAIL['lod']:
+        seg, rings = rev_seg(seg), max(4, rings // 2)
     bmesh.ops.create_uvsphere(tmp, u_segments=seg, v_segments=rings, radius=r * S)
     tmp.transform(Matrix.Translation(Vector(c) * S))
     merge(bm, tmp)
@@ -306,6 +391,8 @@ def set_collection(coll):
 def mk(name, bm, mat=None, clean=True):
     if clean:
         bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-7)
+    if not name.startswith('_'):
+        name = name + DETAIL['suffix']
     me = bpy.data.meshes.new(name)
     bm.to_mesh(me)
     bm.free()
@@ -355,6 +442,8 @@ def boolean(ob, cutter, op='DIFFERENCE', solver='EXACT', keep=False, use_self=Tr
 
 
 def bevel(ob, width, seg=2, angle=30.0, profile=0.5, harden=False, clamp=True, apply=True):
+    if DETAIL['lod']:
+        return ob       # edge rounding comes from the baked normal map
     m = ob.modifiers.new('bevel', 'BEVEL')
     m.width = width * S
     m.segments = seg
@@ -374,6 +463,8 @@ def smooth(ob, angle=32.0, weighted=True):
     me = ob.data
     bm = bmesh.new()
     bm.from_mesh(me)
+    if DETAIL['lod']:
+        angle = 60.0    # hard edges only where the UV unwrap also splits (smart project 60 deg)
     lim = math.radians(angle)
     for e in bm.edges:
         if len(e.link_faces) == 2:
@@ -540,7 +631,7 @@ def _offset_rings(outline, offsets, n):
     return rings
 
 
-def rounded_prism(outline, plane, d0, d1, r0, r1=None, seg=6, n=2.0, bm=None):
+def rounded_prism(outline, plane, d0, d1, r0, r1=None, seg=6, n=2.0, bm=None, lod_seg=1):
     """Extrude a 2D outline between depths d0 < d1 with rounded (quarter-round) cap edges.
 
     r0 / r1 are the rounding radii at the d0 / d1 caps.  The outline is offset
@@ -552,6 +643,10 @@ def rounded_prism(outline, plane, d0, d1, r0, r1=None, seg=6, n=2.0, bm=None):
     own = bm is None
     if own:
         bm = bmesh.new()
+    if DETAIL['lod']:
+        seg = lod_seg
+        n = 1000.0          # straight edges stay single segments
+        outline = simplify_outline(outline, 0.3)
     f = _plane_map(plane)
     prof = []   # (offset, depth) from the d0 cap to the d1 cap
     for k in range(seg + 1):
@@ -635,3 +730,15 @@ def mirror_x(ob, xc_mm):
     bm.free()
     ob.data.update()
     return ob
+
+
+def simplify_outline(pts, tol):
+    """Douglas-Peucker simplification of a closed 2D outline (keeps its topology)."""
+    from shapely.geometry import Polygon
+    g = Polygon(pts)
+    if not g.is_valid:
+        return pts
+    h = g.simplify(tol, preserve_topology=True)
+    if h.is_empty or h.geom_type != 'Polygon':
+        return pts
+    return list(h.exterior.coords)[:-1]

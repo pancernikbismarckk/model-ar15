@@ -4,8 +4,8 @@ import math
 import bmesh
 from mathutils import Matrix, Vector
 
-from ar15lib import (S, arc, bevel, bm_intersect, boolean, box, circle, cylinder, fillet, hexahedron,
-                     lathe, merge, mk, prism, rrect, smooth, sphere, stadium)
+from ar15lib import (S, arc, bevel, bm_intersect, boolean, box, circle, cylinder, fillet, hexahedron, lathe,
+                     lod, merge, mk, prism, rrect, smooth, sphere, stadium)
 
 # Key reference lines (see README for the coordinate system)
 UPPER_REAR = -190.0
@@ -35,7 +35,44 @@ def picatinny_section(top=RAIL_TOP, neck=7.85, wide=10.6, base_w=None, base_z=No
     return [(wide, top - 2.75), (wide, top - 3.5), (neck, top - 6.25)]
 
 
+def rail_teeth(bm, x0, x1, centres, top=RAIL_TOP, width=5.23, band=2.75):
+    """Picatinny teeth as separate blocks on a flat bar (game mesh; no boolean slivers).
+
+    Each tooth is the upper part of the MIL-STD-1913 profile (top +-7.85, widest +-10.6 at
+    top - band) between two recoil slots, without its hidden bottom face.
+    """
+    edges = sorted(centres)
+    spans = []
+    cur = x0
+    for c in edges:
+        a, b = c - width / 2, c + width / 2
+        if b <= x0 or a >= x1:
+            continue
+        if a > cur + 0.2:
+            spans.append((cur, a))
+        cur = max(cur, b)
+    if x1 > cur + 0.2:
+        spans.append((cur, x1))
+    zb = top - band
+    for a, b in spans:
+        v = []
+        for x in (a, b):
+            v += [bm.verts.new(Vector((x, y, z)) * S) for y, z in ((-10.6, zb), (10.6, zb), (7.85, top), (-7.85, top))]
+        f = [bm.faces.new((v[0], v[3], v[2], v[1])), bm.faces.new((v[4], v[5], v[6], v[7])),
+             bm.faces.new((v[1], v[2], v[6], v[5])), bm.faces.new((v[2], v[3], v[7], v[6])),
+             bm.faces.new((v[3], v[0], v[4], v[7]))]
+        # outward normals: front cap faces -X, back cap +X
+        for face in f:
+            face.normal_update()
+        if f[0].normal.x > 0:
+            for face in f:
+                face.normal_flip()
+    return bm
+
+
 def rail_slot_cutters(centres, z_bottom, half_w=13.0, width=5.23):
+    if lod():
+        z_bottom += 0.3
     bm = bmesh.new()
     for c in centres:
         box(c - width / 2, -half_w, z_bottom, c + width / 2, half_w, z_bottom + 10, bm=bm)
@@ -52,11 +89,16 @@ def upper_receiver(M):
            (10.6, top - 2.75), (7.85, top), (-7.85, top), (-10.6, top - 2.75), (-10.6, top - 3.5),
            (-7.85, top - 6.25), (-7.85, 24.2), (-W2, 17.5), (-W2, PARTING_Z)]
     rad = [0.8, 3.0, 1.2, 0.2, 0.3, 0.3, 0.5, 0.5, 0.3, 0.3, 0.2, 1.2, 3.0, 0.8]
+    if lod():   # rail bar flat at the dovetail line, teeth added as blocks further down
+        del sec[6:8], rad[6:8]
     ob = mk('ar15_upper_receiver', prism(fillet(sec, rad, 4), 'YZ', UPPER_REAR, 0.0), M['alu'])
 
     # --- forward assist housing (right side, axis toes in towards the front) ---
-    fa = lathe([(0, 0), (0, 7.3), (36, 7.3), (40.5, 7.0), (44.0, 6.2), (46.8, 5.0), (48.8, 3.4),
-                (49.9, 1.7), (50.2, 0)], seg=32)
+    fa_prof = [(0, 0), (0, 7.3), (36, 7.3), (40.5, 7.0), (44.0, 6.2), (46.8, 5.0), (48.8, 3.4), (49.9, 1.7),
+               (50.2, 0)]
+    if lod():
+        fa_prof = [(0, 0), (0, 7.3), (36, 7.3), (44.0, 6.2), (48.8, 3.4), (50.2, 0)]
+    fa = lathe(fa_prof, seg=32, lod_seg=8)
     fa.transform(Matrix.Translation(Vector((-189.0, -19.6, 6.0)) * S) @
                  Matrix.Rotation(math.radians(6.0), 4, 'Z'))
     # web blending the housing into the receiver wall
@@ -88,7 +130,15 @@ def upper_receiver(M):
     prism(rrect(-92.0, -4.5, -12.0, 15.0, 2.0), 'XZ', -22.0, -6.0, bm=cut)
     diff(ob, cut)
 
-    diff(ob, rail_slot_cutters(UPPER_RAIL_SLOTS, RAIL_TOP - 3.0))
+    if lod():
+        teeth = rail_teeth(bmesh.new(), -178.0, 0.0, UPPER_RAIL_SLOTS)
+        me_bm = bmesh.new()
+        me_bm.from_mesh(ob.data)
+        merge(me_bm, teeth)
+        me_bm.to_mesh(ob.data)
+        me_bm.free()
+    else:
+        diff(ob, rail_slot_cutters(UPPER_RAIL_SLOTS, RAIL_TOP - 3.0))
 
     bevel(ob, 0.45, seg=2, angle=30)
     smooth(ob)
@@ -98,9 +148,10 @@ def upper_receiver(M):
 def dust_cover(M):
     """Closed ejection-port cover; origin on the hinge rod."""
     bm = prism(rrect(-93.0, -5.2, -11.0, 15.8, 2.2), 'XZ', -15.9, -14.6)
-    # stiffening rib and latch
-    prism(rrect(-63.5, -2.6, -42.5, -0.6, 0.8), 'XZ', -16.7, -15.5, bm=bm)
-    prism(rrect(-60.5, 2.2, -47.5, 9.2, 1.8), 'XZ', -17.4, -15.5, bm=bm)
+    # stiffening rib and latch (baked on the game mesh)
+    if not lod():
+        prism(rrect(-63.5, -2.6, -42.5, -0.6, 0.8), 'XZ', -16.7, -15.5, bm=bm)
+        prism(rrect(-60.5, 2.2, -47.5, 9.2, 1.8), 'XZ', -17.4, -15.5, bm=bm)
     # rolled top edge
     cylinder((-92.5, -15.3, 15.0), (-11.5, -15.3, 15.0), 0.9, seg=10, bm=bm)
     # hinge rod (part of the same object: the cover rotates about it)
@@ -195,10 +246,11 @@ def lower_receiver(M):
     box(-140.0, -7.7, -86.0, -130.0, 7.7, -73.5, bm=cut)
     # trigger slot
     box(-124.5, -3.6, -56.0, -103.0, 3.6, -40.0, bm=cut)
-    # hollow fire-control pocket (seen through the trigger slot)
-    box(-140.0, -9.5, -46.0, -86.0, 9.5, PARTING_Z + 2, bm=cut)
-    # buffer tube thread bore
-    lathe([(-205.0, 14.3), (-192.0, 14.3)], seg=48, bm=cut)
+    if not lod():
+        # hollow fire-control pocket (seen through the trigger slot)
+        box(-140.0, -9.5, -46.0, -86.0, 9.5, PARTING_Z + 2, bm=cut)
+        # buffer tube thread bore
+        lathe([(-205.0, 14.3), (-192.0, 14.3)], seg=48, bm=cut)
     diff(ob, cut)
 
     bevel(ob, 0.55, seg=2, angle=30)
@@ -239,6 +291,13 @@ def pins(M):
     """Visible ends/heads of the receiver pins (right and left side)."""
     bm = bmesh.new()
     W = LOWER_W2
+    if lod():
+        for x, z in ((-4.2, -19.5), (-165.6, -20.3)):
+            lathe([(W - 1, 0), (W - 1, 4.3), (W + 1.4, 4.1), (W + 1.9, 3.2), (W + 1.9, 0)], seg=8, bm=bm, axis='Y',
+                  center=(x, z))
+        ob = mk('ar15_pins', bm, M['steel'])
+        smooth(ob)
+        return ob
     # pivot pin and takedown pin: detent ends on the right, heads on the left
     for x, z in ((-4.2, -19.5), (-165.6, -20.3)):
         lathe([(-W - 0.8, 0), (-W - 0.8, 2.6), (-W - 0.5, 3.15), (-W + 1, 3.15), (-W + 1, 0)],
@@ -300,7 +359,7 @@ def bolt_catch(M):
                   (-84.5, -33.4)], [2.0, 3.0, 3.5, 2.0, 3.0, 2.0], 4)
     bm = prism(pts, 'XZ', W + 0.4, W + 2.6)
     # ribbed lower paddle
-    for i in range(3):
+    for i in range(0 if lod() else 3):
         xx = -70.5 + i * 3.2
         box(xx - 0.6, W + 2.4, -33.2, xx + 0.6, W + 3.2, -27.0 + i * 0.8, bm=bm)
     cylinder((-81.5, W - 0.6, -17.8), (-81.5, W + 2.5, -17.8), 1.6, seg=12, bm=bm)
@@ -312,6 +371,14 @@ def bolt_catch(M):
 
 def bolt_carrier(M):
     """Bolt carrier group in battery (hidden by the closed dust cover); origin at its rear."""
+    if lod():
+        bm = lathe([(-196.0, 0), (-196.0, 10.6), (-185.0, 12.25), (-37.2, 12.25), (-36.2, 0)], seg=10)
+        box(-84.0, -4.6, 9.5, -47.0, 4.6, 18.2, bm=bm)
+        lathe([(-40.0, 0), (-40.0, 8.9), (-8.4, 8.9), (-8.4, 0)], seg=8, bm=bm)
+        ob = mk('ar15_bolt_carrier', bm, M['steel'])
+        diff(ob, box(-120.0, -20.0, -6.0, -36.0, -11.0, 7.0))
+        smooth(ob)
+        return ob
     bm = lathe([(-196.0, 0), (-196.0, 9.8), (-195.2, 10.6), (-186.0, 10.6), (-185.0, 12.25),
                 (-37.2, 12.25), (-36.2, 11.4), (-36.2, 0)], seg=40)
     # gas key with its nozzle
@@ -326,11 +393,11 @@ def bolt_carrier(M):
     cut = bmesh.new()
     # ejection-port side flat and forward-assist serrations on the right
     box(-120.0, -20.0, -6.0, -36.0, -11.0, 7.0, bm=cut)
-    for k in range(9):
+    for k in range(0 if lod() else 9):
         x = -150.0 + k * 3.0
         box(x - 0.8, -20.0, 1.0, x + 0.8, -11.2, 11.0, bm=cut)
     # lug gaps
-    for k in range(7):
+    for k in range(0 if lod() else 7):
         b = box(-15.0, -1.2, 6.0, -8.0, 1.2, 10.0)
         b.transform(Matrix.Rotation(math.radians(360.0 / 7 * k + 12), 4, 'X'))
         merge(cut, b)

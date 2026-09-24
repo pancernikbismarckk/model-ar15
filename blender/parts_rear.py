@@ -4,7 +4,7 @@ import math
 import bmesh
 from mathutils import Matrix, Vector
 
-from ar15lib import (S, bevel, boolean, box, clip_outline, cylinder, fillet, inset_outline, lathe, merge,
+from ar15lib import (S, bevel, boolean, box, clip_outline, cylinder, fillet, inset_outline, lathe, lod, merge,
                      mk, prism, rounded_prism, rrect, smooth, stadium)
 from parts_receivers import diff, union
 
@@ -22,7 +22,7 @@ def buffer_tube(M):
     box(-214.0, -4.9, -18.6, TUBE_X1 + 2.0, 4.9, -12.0, bm=bm)
     ob = mk('ar15_buffer_tube', bm, M['alu'])
     holes = bmesh.new()
-    for k in range(6):
+    for k in range(0 if lod() else 6):
         x = -230.0 - 16.24 * k
         cylinder((x, 0, -22.0), (x, 0, -15.0), 2.6, seg=16, bm=holes)
     diff(ob, holes)
@@ -33,7 +33,7 @@ def buffer_tube(M):
 
 def castle_nut(M):
     ob = mk('ar15_castle_nut', lathe([(-212.0, TUBE_R + 0.05), (-212.0, 16.3), (-211.2, 17.0),
-                                      (-204.0, 17.0), (-204.0, TUBE_R + 0.05)], seg=48, closed=True),
+                                      (-204.0, 17.0), (-204.0, TUBE_R + 0.05)], seg=48, closed=True, lod_seg=12),
             M['steel'])
     cut = bmesh.new()
     for k in range(3):
@@ -41,7 +41,7 @@ def castle_nut(M):
         b.transform(Matrix.Rotation(math.radians(30 + 120 * k), 4, 'X'))
         merge(cut, b)
     # knurl ring
-    for k in range(40):
+    for k in range(0 if lod() else 40):
         b = box(-207.5, -0.35, 16.6, -204.6, 0.35, 17.6)
         b.transform(Matrix.Rotation(math.radians(9 * k), 4, 'X'))
         merge(cut, b)
@@ -53,12 +53,13 @@ def castle_nut(M):
 
 def end_plate(M):
     outline = [(math.cos(math.radians(a)) * 17.6, math.sin(math.radians(a)) * 17.6)
-               for a in range(-60, 241, 10)]
+               for a in range(-60, 241, 30 if lod() else 10)]
     outline += [(-5.5, -21.5), (5.5, -21.5)]
     pts = fillet(outline, [0] * (len(outline) - 2) + [1.5, 1.5], 3)
     ob = mk('ar15_end_plate', prism(pts, 'YZ', -204.0, -198.0), M['steel'])
-    cut = lathe([(-205.0, TUBE_R + 0.05), (-197.0, TUBE_R + 0.05)], seg=48)
-    diff(ob, cut)
+    if not lod():
+        cut = lathe([(-205.0, TUBE_R + 0.05), (-197.0, TUBE_R + 0.05)], seg=48)
+        diff(ob, cut)
     bevel(ob, 0.5, seg=2, angle=30)
     smooth(ob)
     return ob
@@ -98,7 +99,8 @@ def _stock_outline():
 
 def _stock_section(x0, x1):
     """Cross-section (YZ) of the stock: round top over the tube, flat sides, narrower toe."""
-    pts = [(math.cos(math.radians(a)) * 18.5, math.sin(math.radians(a)) * 18.5) for a in range(0, 181, 10)]
+    step = 30 if lod() else 10
+    pts = [(math.cos(math.radians(a)) * 18.5, math.sin(math.radians(a)) * 18.5) for a in range(0, 181, step)]
     pts += [(-18.5, -60.0), (-16.2, -116.0), (16.2, -116.0), (18.5, -60.0)]
     return prism(pts, 'YZ', x0, x1)
 
@@ -131,9 +133,10 @@ def stock(M):
     prism(stadium(-350.0, -26.4, 32.0, 4.2, seg=6), 'XZ', -30, 30, bm=thru)
     prism(stadium(-354.5, -89.5, 33.5, 3.9, angle=math.radians(59.6), seg=6), 'XZ', -30, 30, bm=thru)
     cylinder((-356.5, -30, -40.0), (-356.5, 30, -40.0), 5.0, seg=24, bm=thru)
-    # bore and indexing-rail channel for the buffer tube
-    lathe([(STOCK_FRONT_X - 5, 14.95), (-386.0, 14.95)], seg=40, bm=thru)
-    box(-386.0, -5.1, -19.2, STOCK_FRONT_X + 5, 5.1, -10.0, bm=thru)
+    # bore and indexing-rail channel for the buffer tube (the game mesh keeps the stock solid)
+    if not lod():
+        lathe([(STOCK_FRONT_X - 5, 14.95), (-386.0, 14.95)], seg=40, bm=thru)
+        box(-386.0, -5.1, -19.2, STOCK_FRONT_X + 5, 5.1, -10.0, bm=thru)
     diff(ob, thru)
 
     bevel(ob, 0.6, seg=2, angle=35)
@@ -143,13 +146,14 @@ def stock(M):
 
 def buttpad(M):
     ob = mk('ar15_buttpad', rounded_prism(_stock_outline(), 'XZ', -19.2, 19.2, 4.8, seg=5, n=2.5), M['rubber'])
-    sec = [(math.cos(math.radians(a)) * 19.2, math.sin(math.radians(a)) * 19.2) for a in range(0, 181, 10)]
+    sec = [(math.cos(math.radians(a)) * 19.2, math.sin(math.radians(a)) * 19.2)
+           for a in range(0, 181, 30 if lod() else 10)]
     sec += [(-19.2, -60.0), (-16.9, -116.0), (16.9, -116.0), (19.2, -60.0)]
     boolean(ob, prism(sec, 'YZ', -420, -300), op='INTERSECT')
     boolean(ob, _behind_joint(), op='INTERSECT')
     # serrations across the rear face
     cut = bmesh.new()
-    for i in range(len(REAR_LINE) - 1):
+    for i in range(0 if lod() else len(REAR_LINE) - 1):
         (x0, z0), (x1, z1) = REAR_LINE[i], REAR_LINE[i + 1]
         L = math.hypot(x1 - x0, z1 - z0)
         n = max(1, round(L / 3.4))
@@ -172,7 +176,7 @@ def stock_lever(M):
                   (-282.0, -20.8), (-292.0, -18.6), (-300.5, -22.0), (-322.0, -26.6)],
                  [1.5, 1.5, 3.0, 3.0, 2.0, 3.0, 4.0, 3.0, 3.0], 4)
     bm = prism(pts, 'XZ', -13.2, 13.2)
-    for k in range(7):
+    for k in range(0 if lod() else 7):
         x = -344.0 + k * 3.1
         box(x - 0.7, -13.8, -33.8, x + 0.7, 13.8, -28.2 + k * 0.25, bm=bm)
     cylinder((-291.0, -14.2, -24.8), (-291.0, 14.2, -24.8), 4.3, seg=20, bm=bm)
@@ -218,7 +222,11 @@ GRIP_RADII = [1.0, 10.0, 8.0, 6.0, 4.0,
 
 def pistol_grip(M):
     outline = fillet(GRIP_OUTLINE, GRIP_RADII, 6)
-    ob = mk('ar15_pistol_grip', rounded_prism(outline, 'XZ', -14.4, 14.4, 6.5, seg=7, n=1.6), M['polymer'])
+    ob = mk('ar15_pistol_grip', rounded_prism(outline, 'XZ', -14.4, 14.4, 6.5, seg=7, n=1.6, lod_seg=2),
+            M['polymer'])
+    if lod():
+        smooth(ob)
+        return ob
     # checkered side panels on the flat part of the grip
     panel = clip_outline(inset_outline(outline, 8.0), (-240.0, -129.0, -120.0, -63.0))
     panel = fillet(panel, 2.0, 2) if len(panel) < 40 else panel
