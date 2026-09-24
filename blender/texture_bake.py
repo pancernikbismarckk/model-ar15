@@ -423,7 +423,13 @@ def bake_group(group, objs, size):
 
 
 def main():
-    size = int(sys.argv[1]) if len(sys.argv) > 1 else 2048
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument('size', nargs='?', type=int, default=2048)
+    ap.add_argument('--att-size', type=int, default=2048)
+    ap.add_argument('--only', default='', help='bake only this group (ar15_weapon or ar15_attachments)')
+    args = ap.parse_args(sys.argv[1:])
+    size = args.size
     bpy.ops.wm.open_mainfile(filepath=os.path.join(ROOT, 'weapon_ar15.blend'))
     sc = bpy.context.scene
     sc.render.engine = 'CYCLES'
@@ -440,8 +446,10 @@ def main():
 
     weapon = [o for o in meshes if not is_att(o) and not is_special(o)]
     atts = [o for o in meshes if is_att(o) and not is_special(o)]
-    bake_group('ar15_weapon', weapon, size)
-    bake_group('ar15_attachments', atts, size // 2)
+    if args.only in ('', 'ar15_weapon'):
+        bake_group('ar15_weapon', weapon, size)
+    if args.only in ('', 'ar15_attachments'):
+        bake_group('ar15_attachments', atts, args.att_size)
     for m in list(bpy.data.materials):
         if m.users == 0 and not m.use_fake_user:
             bpy.data.materials.remove(m)

@@ -18,7 +18,7 @@ ani oznaczeń bezpiecznika. Wszystkie nazwy obiektów są generyczne (`weapon_ar
 | `weapon_ar15.blend` | scena Blendera (kolekcja `weapon_ar15`: broń, 4 dodatki, sockety) |
 | `export/weapon_ar15.glb` | eksport glTF 2.0 (hierarchia, tekstury PBR, dodatki) |
 | `export/weapon_ar15.fbx` | eksport FBX (hierarchia, UV, tekstury z `textures/`, właściwości) |
-| `textures/*.png` | atlasy tekstur (broń 2048, dodatki 1024) |
+| `textures/*.png` | atlasy tekstur (broń 2048, dodatki 2048) |
 | `renders/*.png` | rendery podglądowe (Cycles) |
 | `blender/*.py` | generator — model jest w całości budowany skryptem, więc każdą poprawkę można odtworzyć |
 
@@ -52,8 +52,8 @@ więc można je eksportować jako osobne komponenty broni:
 
 | Obiekt | Dodatek | Mocowanie |
 |---|---|---|
-| `ar15_att_holo` | celownik holograficzny (szkło + podświetlany czerwony krzyż/pierścień) | szyna Picatinny komory górnej, `socket_att_scope` |
-| `ar15_att_foregrip` | chwyt przedni pionowy | dolny slot M-LOK, `socket_att_grip` |
+| `ar15_att_holo` | celownik holograficzny typu „box” 96,5 × 58,4 × 73,7 mm: okno z osłoną, pojemnik baterii z radełkowaną nakrętką, 2 pokrętła regulacji, 2 przyciski, montaż z dźwignią; szkło + podświetlany pierścień z kropką | szyna Picatinny komory górnej, `socket_att_scope` |
+| `ar15_att_foregrip` | chwyt przedni kątowy z ogranicznikiem dłoni (okno w przedniej płetwie, ryflowania) | dwa dolne sloty M-LOK, `socket_att_grip` |
 | `ar15_att_flashlight` | latarka taktyczna na montażu offset | prawy slot M-LOK, `socket_att_flashlight` |
 | `ar15_att_laser` | moduł laserowy (laser + okno IR) | lewy slot M-LOK, `socket_att_laser` |
 
@@ -68,7 +68,7 @@ Wypiekane (bake) atlasy PBR w `textures/`:
 | Atlas | Rozdzielczość | Mapy |
 |---|---|---|
 | `ar15_weapon_*` | 2048 × 2048 | `basecolor` (z AO), `orm` (R = AO, G = roughness, B = metallic), `normal` (OpenGL) |
-| `ar15_attachments_*` | 1024 × 1024 | jak wyżej |
+| `ar15_attachments_*` | 2048 × 2048 | jak wyżej |
 
 Detal powierzchni: ziarno anodowanego aluminium, delikatne przetarcia krawędzi, faktura fosforanowanej
 stali, stipple polimeru, radełkowanie chwytu, AO w zagłębieniach. Źródłowe materiały proceduralne
@@ -102,7 +102,7 @@ Sockety (empty) dla silnika: `socket_muzzle`, `socket_shell_eject`, `socket_grip
 
 ## Siatka i materiały
 
-- Broń ~114 tys. trójkątów (36 obiektów) + dodatki ~24 tys.; fazowane krawędzie + weighted normals.
+- Broń ~114 tys. trójkątów (36 obiektów) + dodatki ~48 tys.; fazowane krawędzie + weighted normals.
 - To jest model źródłowy (high-poly). Pod **FiveM / GTA V** zrobimy z niego wersję game-ready
   (niska siatka + bake normal map, tekstury, eksport `.ydr`) — po akceptacji kształtu.
 - Materiały PBR: `ar15_aluminum_anodized`, `ar15_steel_phosphate`, `ar15_polymer`,
@@ -115,6 +115,8 @@ Sockety (empty) dla silnika: `socket_muzzle`, `socket_shell_eject`, `socket_grip
 pip install bpy shapely          # Blender 5.0 jako moduł Pythona
 python3 blender/build_weapon_ar15.py --save     # geometria + dodatki
 python3 blender/texture_bake.py 2048            # atlasy UV + bake tekstur
+# szybka zmiana samych dodatków (broń zostaje z teksturami):
+# python3 blender/update_attachments.py && python3 blender/texture_bake.py --only ar15_attachments
 python3 blender/export_all.py                   # GLB + FBX z teksturami
 python3 blender/render_final.py 96              # rendery do renders/
 ```
