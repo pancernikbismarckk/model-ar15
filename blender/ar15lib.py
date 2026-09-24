@@ -621,3 +621,17 @@ def glass_material(name, color=(0.86, 0.93, 0.92), alpha=0.16, roughness=0.04):
         m.blend_method = 'BLEND'
     m.use_backface_culling = False
     return m
+
+
+def mirror_x(ob, xc_mm):
+    """Mirror an object's mesh front-to-back about the plane x = xc (mm), keeping normals outward."""
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    xc = xc_mm * S
+    bm.transform(Matrix.Translation((xc, 0, 0)) @ Matrix.Scale(-1, 4, Vector((1, 0, 0))) @
+                 Matrix.Translation((-xc, 0, 0)))
+    bmesh.ops.reverse_faces(bm, faces=bm.faces)
+    bm.to_mesh(ob.data)
+    bm.free()
+    ob.data.update()
+    return ob

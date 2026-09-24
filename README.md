@@ -53,8 +53,8 @@ więc można je eksportować jako osobne komponenty broni:
 | Obiekt | Dodatek | Mocowanie |
 |---|---|---|
 | `ar15_att_holo` | celownik holograficzny typu „box” 96,5 × 58,4 × 73,7 mm: okno z osłoną, pojemnik baterii z radełkowaną nakrętką, 2 pokrętła regulacji, 2 przyciski, montaż z dźwignią; szkło + podświetlany pierścień z kropką | szyna Picatinny komory górnej, `socket_att_scope` |
-| `ar15_att_foregrip` | chwyt przedni kątowy z ogranicznikiem dłoni (okno w przedniej płetwie, ryflowania) | dwa dolne sloty M-LOK, `socket_att_grip` |
-| `ar15_att_flashlight` | latarka taktyczna na montażu offset | prawy slot M-LOK, `socket_att_flashlight` |
+| `ar15_att_foregrip` | chwyt przedni kątowy: wysoka stopka z trójkątnym oknem z tyłu (od strony magazynka), ryflowany skos i niski ogranicznik z przodu | dwa dolne sloty M-LOK, `socket_att_grip` |
+| `ar15_att_flashlight` | latarka taktyczna na szynę, dł. 117,9 mm: głowica Ø 32,2 mm z 4 żebrami (Ø 34,2), korpus Ø 26,5, pierścień zatrzasku Ø 29,4 z radełkowanym pokrętłem Ø 14,5, radełkowany uchwyt Ø 25, nasadka z koronką i gumowym włącznikiem; w środku odbłyśnik, LED i szybka | prawy bok łoża: krótka szyna Picatinny (45 mm) na slocie M-LOK, `socket_att_flashlight` |
 | `ar15_att_laser` | moduł laserowy (laser + okno IR) | lewy slot M-LOK, `socket_att_laser` |
 
 Przy założonym celowniku przyrządy mechaniczne są złożone jak w prawdziwej broni: tylny przeziernik

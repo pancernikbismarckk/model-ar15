@@ -21,7 +21,7 @@ HOLO_LEN, HOLO_W, HOLO_H = 96.5, 58.4, 73.7   # overall L x W x H incl. mount an
 HOLO_X0, HOLO_X1 = HOLO_REAR_X, HOLO_REAR_X + HOLO_LEN
 HOLO_WIN_Z = 41.5               # window centre above the rail top (local)
 HOLO_WINDOW_Z = RAIL_TOP + HOLO_WIN_Z
-GRIP_FRONT_X = 311.5            # front end of the angled foregrip
+GRIP_FRONT_X = 311.5            # front end of the angled foregrip (outline is drawn toe-first, then mirrored)
 GRIP_TNUTS = (276.5, 236.5)     # bottom M-LOK slot centres used by the grip
 GRIP_X = GRIP_FRONT_X - 55.0
 SIDE_SLOT_X = 356.5             # front side M-LOK slot centre
@@ -243,6 +243,9 @@ def foregrip(M):
         box(xf + x - 0.7, -20.0, zt + zb - 6.0, xf + x + 0.7, 20.0, zt + zb + 0.9, bm=cut)
     diff(grip, cut)
     bevel(grip, 0.35, seg=2, angle=35)
+    # mounted with the tall toe to the rear (toward the magazine), ribbed slope rising to the muzzle
+    from ar15lib import mirror_x
+    mirror_x(grip, GRIP_X)
     smooth(grip, angle=35)
 
     tn = bmesh.new()
@@ -255,54 +258,207 @@ def foregrip(M):
 
 
 # ---------------------------------------------------------------------------
-# Weapon light on the right side M-LOK slot
+# Weapon light on the right side: short Picatinny rail on an M-LOK slot + rail-clamp light
+# Profile measured from reference photos: 117.9 mm long, head D32.2, fins D34.2, body D26.5,
+# clamp ring D29.4, knurled grip D25.0, tail cap D23.8.
 # ---------------------------------------------------------------------------
-LIGHT_Y = -40.5
-LIGHT_Z = SIDE_Z
-LIGHT_X0 = 298.0
+FL_SLOT_X = 316.5               # right-side M-LOK slot carrying the rail section
+FL_LEN = 117.9
+FL_RAIL_H = 8.4                 # height of the rail section above the handguard face
+FL_SADDLE = 17.0                # light axis to rail top
+LIGHT_Z = HG_Z0
+LIGHT_Y = -(HG_SIDE_Y + FL_RAIL_H + FL_SADDLE)
+FL_MOUNT_A = 69.7               # clamp centre, measured back from the bezel face
+LIGHT_FRONT_X = FL_SLOT_X + FL_MOUNT_A
+LIGHT_X0 = LIGHT_FRONT_X - FL_LEN
+FL_BOLT_Y = -(HG_SIDE_Y + FL_RAIL_H - 2.0)   # cross bolt runs through a rail groove
+
+SOCKETS['socket_att_flashlight'] = (FL_SLOT_X, -HG_SIDE_Y, HG_Z0)
+
+
+def _ax(a):
+    """World X of a point a mm behind the bezel face."""
+    return LIGHT_FRONT_X - a
+
+
+def _light_lathe(prof, seg=48, closed=True, bm=None):
+    """Lathe around the light axis; prof holds (a, r) pairs, a measured back from the bezel."""
+    return lathe([(_ax(a), r) for a, r in prof], seg=seg, axis='X', center=(LIGHT_Y, LIGHT_Z), closed=closed,
+                 bm=bm)
+
+
+def _knurl_sleeve(a0, a1, r_peak, depth, r_in, n=96):
+    """Diamond-knurled tube: checkerboard of peaks/valleys, split along the valley diagonals."""
+    bm = bmesh.new()
+    pitch = 2 * math.pi * r_peak / n
+    K = max(2, int(round((a1 - a0) / pitch)))
+    rings = []
+    for k in range(K + 1):
+        a = a0 + (a1 - a0) * k / K
+        ring = []
+        for i in range(n):
+            t = 2 * math.pi * i / n
+            r = r_peak if (i + k) % 2 == 0 else r_peak - depth
+            ring.append(bm.verts.new(Vector((_ax(a), LIGHT_Y + r * math.cos(t), LIGHT_Z + r * math.sin(t))) * S))
+        rings.append(ring)
+    for k in range(K):
+        for i in range(n):
+            j = (i + 1) % n
+            v00, v01, v11, v10 = rings[k][i], rings[k][j], rings[k + 1][j], rings[k + 1][i]
+            if (i + k) % 2 == 0:
+                bm.faces.new((v00, v01, v10))
+                bm.faces.new((v01, v11, v10))
+            else:
+                bm.faces.new((v00, v01, v11))
+                bm.faces.new((v00, v11, v10))
+    inner = []
+    for a in (a0, a1):
+        inner.append([bm.verts.new(Vector((_ax(a), LIGHT_Y + r_in * math.cos(2 * math.pi * i / n),
+                                           LIGHT_Z + r_in * math.sin(2 * math.pi * i / n))) * S) for i in range(n)])
+    for i in range(n):
+        j = (i + 1) % n
+        bm.faces.new((rings[0][j], rings[0][i], inner[0][i], inner[0][j]))
+        bm.faces.new((rings[K][i], rings[K][j], inner[1][j], inner[1][i]))
+        bm.faces.new((inner[0][i], inner[1][i], inner[1][j], inner[0][j]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    return bm
+
+
+def _rail_section(x0, x1):
+    """Short Picatinny rail on the right handguard facet (local u = height above the facet)."""
+    h = FL_RAIL_H
+    sec = [(7.85, -0.6), (7.85, h - 6.25), (10.6, h - 3.5), (10.6, h - 2.75), (7.85, h), (-7.85, h),
+           (-10.6, h - 2.75), (-10.6, h - 3.5), (-7.85, h - 6.25), (-7.85, -0.6)]
+    bm = prism(fillet(sec, [0, 0.2, 0.3, 0.3, 0.5, 0.5, 0.3, 0.3, 0.2, 0], 3), 'YZ', x0, x1)
+    cut = bmesh.new()
+    for k in range(-2, 3):
+        xc = FL_SLOT_X + 10.0 * k
+        box(xc - 2.62, -13.0, h - 3.0, xc + 2.62, 13.0, h + 2.0, bm=cut)
+    # chamfered rail ends
+    for xe, sgn in ((x0, 1), (x1, -1)):
+        pts = [(xe - sgn * 1.0, h + 1.0), (xe + sgn * 2.2, h + 1.0), (xe - sgn * 1.0, h - 2.2)]
+        prism(pts, 'XZ', -13.0, 13.0, bm=cut)
+    fr = facet_frame(180)
+    bm.transform(fr)
+    cut.transform(fr)
+    return bm, cut
+
+
+def _knob_z(bm, cx, cy, z0, z1, r, teeth=30, depth=0.45):
+    """Knurled thumbscrew knob with its axis along Z (chamfered top)."""
+    pts = []
+    for k in range(teeth * 2):
+        t = math.pi * k / teeth
+        rr = r if k % 2 == 0 else r - depth
+        pts.append((cx + rr * math.cos(t), cy + rr * math.sin(t)))
+    prism(pts, 'XY', z0, z1 - 0.9, bm=bm)
+    lathe([(z1 - 1.0, 0.0), (z1 - 1.0, r - 0.3), (z1, r - 1.2), (z1, 0.0)], seg=32, axis='Z', center=(cx, cy),
+          bm=bm)
 
 
 def flashlight(M):
-    prof = [(0.0, 0.0), (0.0, 6.0), (0.8, 6.4), (0.8, 10.8), (2.6, 12.2), (8.0, 12.2), (8.6, 11.5),
-            (9.6, 11.5), (10.4, 12.7)]
-    x = 14.0
-    while x < 52.0:     # knurl rings on the body
-        prof += [(x, 12.7), (x + 0.6, 12.1), (x + 1.8, 12.1), (x + 2.4, 12.7)]
-        x += 4.0
-    prof += [(58.0, 12.7), (64.0, 13.2), (70.0, 14.6)]
-    for hx in (74.0, 78.0, 82.0):   # cooling grooves on the head
-        prof += [(hx, 14.6), (hx + 0.6, 13.8), (hx + 1.6, 13.8), (hx + 2.2, 14.6)]
-    prof += [(89.0, 14.6), (90.6, 14.1), (91.2, 13.4), (91.2, 11.7), (90.0, 11.7), (90.0, 0.0)]
-    bm = lathe(prof, seg=40, axis='X')
-    bm.transform(Matrix.Translation(Vector((LIGHT_X0, LIGHT_Y, LIGHT_Z)) * S))
-    body = mk('ar15_att_light_body', bm, M['alu'])
-    smooth(body, angle=40)
+    parts = []
+    # --- housing: bezel, head with four cooling fins, taper, body tube (under ring and knurl) ---
+    # starts at the bottom of the reflector cavity so the lens opening stays hollow
+    prof = [(10.5, 0.0), (10.5, 12.9), (1.2, 12.9), (0.0, 13.35), (0.0, 14.6), (0.25, 15.35), (0.7, 15.9),
+            (1.4, 16.1), (20.5, 16.1)]
+    for c in (21.85, 25.05, 28.25, 31.45):
+        prof += [(c - 1.1, 16.1), (c - 0.85, 16.8), (c - 0.55, 17.1), (c + 0.55, 17.1), (c + 0.85, 16.8),
+                 (c + 1.1, 16.1)]
+    prof += [(39.7, 16.1), (40.4, 15.85), (42.0, 14.85), (43.8, 13.75), (44.8, 13.35), (45.6, 13.25),
+             (53.4, 13.25), (53.7, 12.45), (54.9, 12.45), (55.4, 12.9), (84.6, 12.9), (84.8, 11.85),
+             (108.9, 11.85), (108.9, 0.0)]
+    body = mk('ar15_att_light_body', _light_lathe(prof, seg=56), M['alu'])
+    smooth(body, angle=35)
+    parts.append(body)
 
-    # tail switch (rubber)
-    tb = lathe([(-1.4, 0.0), (-1.4, 4.4), (-0.6, 5.6), (0.8, 5.6), (0.8, 0.0)], seg=24, axis='X')
-    tb.transform(Matrix.Translation(Vector((LIGHT_X0, LIGHT_Y, LIGHT_Z)) * S))
-    tail = mk('ar15_att_light_switch', tb, M['rubber'])
-    smooth(tail, angle=40)
-
-    # M-LOK offset mount with a ring clamp
-    mb = bmesh.new()
-    prism(stadium(SIDE_SLOT_X, SIDE_Z, 34.0, 15.0, seg=6), 'XZ', -HG_SIDE_Y - 3.0, -HG_SIDE_Y + 0.3, bm=mb)
-    prism(rrect(SIDE_SLOT_X - 12.0, LIGHT_Z - 6.0, SIDE_SLOT_X + 12.0, LIGHT_Z + 6.0, 2.0), 'XZ',
-          LIGHT_Y + 10.0, -HG_SIDE_Y - 2.8, bm=mb)
-    lathe([(SIDE_SLOT_X - 11.0, 12.8), (SIDE_SLOT_X - 11.0, 16.0), (SIDE_SLOT_X + 11.0, 16.0),
-           (SIDE_SLOT_X + 11.0, 12.8)], seg=40, axis='X', center=(LIGHT_Y, LIGHT_Z), closed=True, bm=mb)
+    # --- clamp ring with the rail saddle and the cross-bolt jaws ---
+    mb = _light_lathe([(55.4, 12.7), (55.4, 13.5), (56.0, 14.2), (56.8, 14.7), (82.2, 14.7), (83.2, 13.9),
+                       (84.2, 12.7)], seg=56)
+    rail_top_y = -(HG_SIDE_Y + FL_RAIL_H)
+    xa, xb = FL_SLOT_X - 11.0, FL_SLOT_X + 11.0
+    box(xa, LIGHT_Y + 9.0, LIGHT_Z - 13.6, xb, rail_top_y, LIGHT_Z + 13.6, bm=mb)
+    for sgn in (-1, 1):
+        z0, z1 = sorted((LIGHT_Z + sgn * 10.85, LIGHT_Z + sgn * 13.6))
+        box(xa, rail_top_y - 0.5, z0, xb, rail_top_y + 5.4, z1, bm=mb)
     mount = mk('ar15_att_light_mount', mb, M['alu'])
-    scr = bmesh.new()
-    for sx in (SIDE_SLOT_X - 6.0, SIDE_SLOT_X + 6.0):
-        cylinder((sx, LIGHT_Y, LIGHT_Z - 17.5), (sx, LIGHT_Y, LIGHT_Z - 14.0), 2.4, seg=6, bm=scr)
-    diff(mount, scr)
+    rail, rail_cut = _rail_section(FL_SLOT_X - 22.5, FL_SLOT_X + 22.5)
+    # clearance for the rail inside the clamp
+    tmp = mk('_rail_env', rail.copy())
+    from ar15lib import ob_to_bm
+    env = ob_to_bm(tmp)
+    diff(mount, env)
     bevel(mount, 0.5, seg=2, angle=30)
     smooth(mount)
+    parts.append(mount)
 
-    lens = lathe([(90.2, 0.0), (90.2, 11.8), (90.8, 11.8), (90.8, 0.0)], seg=40, axis='X')
-    lens.transform(Matrix.Translation(Vector((LIGHT_X0, LIGHT_Y, LIGHT_Z)) * S))
-    lo = mk('ar15_att_light_lens', lens, M['lens_light'])
-    return [body, tail, mount, lo]
+    rail_ob = mk('ar15_att_light_rail', rail, M['alu'])
+    diff(rail_ob, rail_cut)
+    bevel(rail_ob, 0.3, seg=1, angle=35)
+    smooth(rail_ob)
+    parts.append(rail_ob)
+
+    # --- thumbscrew knob (top) and nut (bottom) on the cross bolt ---
+    kb = bmesh.new()
+    cylinder((FL_SLOT_X, FL_BOLT_Y, LIGHT_Z + 13.4), (FL_SLOT_X, FL_BOLT_Y, LIGHT_Z + 17.6), 4.4, seg=24, bm=kb)
+    _knob_z(kb, FL_SLOT_X, FL_BOLT_Y, LIGHT_Z + 17.5, LIGHT_Z + 24.0, 7.25)
+    knob = mk('ar15_att_light_knob', kb, M['alu'])
+    smooth(knob, angle=35)
+    parts.append(knob)
+    nb = bmesh.new()
+    lathe([(LIGHT_Z - 13.4, 0.0), (LIGHT_Z - 13.4, 4.3), (LIGHT_Z - 16.4, 4.3), (LIGHT_Z - 16.4, 0.0)], seg=6,
+          axis='Z', center=(FL_SLOT_X, FL_BOLT_Y), phase=math.pi / 6, bm=nb)
+    cylinder((FL_SLOT_X, FL_BOLT_Y, LIGHT_Z - 16.3), (FL_SLOT_X, FL_BOLT_Y, LIGHT_Z - 17.3), 2.1, seg=14, bm=nb)
+    nut = mk('ar15_att_light_nut', nb, M['steel'])
+    bevel(nut, 0.25, seg=1, angle=35)
+    smooth(nut)
+    parts.append(nut)
+
+    # --- diamond-knurled grip section ---
+    kn = mk('ar15_att_light_knurl', _knurl_sleeve(85.0, 107.6, 12.55, 0.38, 11.7), M['alu'])
+    smooth(kn, angle=12, weighted=False)
+    parts.append(kn)
+
+    # --- tail cap with crenellated rim ---
+    tc = _light_lathe([(108.6, 11.2), (108.6, 11.45), (109.0, 11.9), (114.9, 11.9), (115.7, 11.55),
+                       (117.1, 11.0), (117.3, 10.3), (117.3, 8.7), (115.6, 8.4), (115.6, 0.0), (108.6, 0.0)],
+                      seg=48)
+    tail = mk('ar15_att_light_tailcap', tc, M['alu'])
+    notches = bmesh.new()
+    for k in range(6):
+        t = math.radians(30 + 60 * k)
+        b = box(_ax(118.5), -1.6, 7.5, _ax(115.9), 1.6, 13.5)
+        b.transform(Matrix.Translation(Vector((0.0, LIGHT_Y, LIGHT_Z)) * S) @ Matrix.Rotation(t, 4, 'X'))
+        merge(notches, b)
+    diff(tail, notches)
+    bevel(tail, 0.35, seg=2, angle=30)
+    smooth(tail)
+    parts.append(tail)
+
+    sw = mk('ar15_att_light_switch', _light_lathe([(115.3, 0.0), (115.3, 7.6), (116.9, 7.6), (117.5, 6.7),
+                                                   (117.85, 4.5), (117.9, 0.0)], seg=40, closed=False),
+            M['rubber'])
+    smooth(sw, angle=40)
+    parts.append(sw)
+
+    # --- optics: glass, chrome reflector, LED ---
+    gl = mk('ar15_att_light_glass', _light_lathe([(0.75, 0.0), (0.75, 13.1), (1.05, 13.1), (1.05, 0.0)], seg=48,
+                                                 closed=False), M['glass'])
+    parts.append(gl)
+    rf = _light_lathe([(1.15, 12.95), (3.0, 10.6), (5.5, 7.3), (7.8, 4.5), (9.0, 3.0), (9.6, 3.0), (9.6, 0.0),
+                       (9.9, 0.0), (9.9, 3.3), (8.2, 4.8), (5.9, 7.7), (3.4, 11.0), (1.5, 13.2)], seg=48)
+    ref = mk('ar15_att_light_reflector', rf, M['chrome'])
+    smooth(ref, angle=40)
+    parts.append(ref)
+    led = box(_ax(9.6), LIGHT_Y - 1.6, LIGHT_Z - 1.6, _ax(9.0), LIGHT_Y + 1.6, LIGHT_Z + 1.6)
+    lo = mk('ar15_att_light_led', led, M['led'])
+    parts.append(lo)
+    return parts
+
+
+EMIT_SOCKETS = {
+    'socket_light_emit': (LIGHT_FRONT_X, LIGHT_Y, LIGHT_Z),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -346,3 +502,6 @@ def laser(M):
     cylinder((ex - 2.2, ey, ez - 11.0), (ex - 1.6, ey, ez - 11.0), 4.4, seg=24, bm=ib)
     ir = mk('ar15_att_laser_ir_lens', ib, M['glass_dark'])
     return [ob, lens, ir]
+
+
+EMIT_SOCKETS['socket_laser_emit'] = LASER_EMIT

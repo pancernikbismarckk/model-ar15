@@ -44,6 +44,8 @@ def materials():
                                           roughness=0.05, metallic=0.4),
         'lens_laser': L.emissive_material('ar15_lens_laser', (1.0, 0.03, 0.02), 0.0, base=(0.45, 0.03, 0.03),
                                           roughness=0.06),
+        'chrome': L.material('ar15_chrome', (0.90, 0.90, 0.92), metallic=1.0, roughness=0.07),
+        'led': L.emissive_material('ar15_led', (1.0, 0.96, 0.88), 0.0, base=(0.93, 0.84, 0.38), roughness=0.35),
     }
 
 
@@ -218,11 +220,7 @@ def assemble_attachments(root, atts):
             L.set_origin(ob, tuple(v / L.S for v in e.matrix_world.translation))
             bpy.context.view_layer.update()
             L.parent(ob, e)
-    emit = {
-        'socket_light_emit': (A.LIGHT_X0 + 91.2, A.LIGHT_Y, A.LIGHT_Z),
-        'socket_laser_emit': A.LASER_EMIT,
-    }
-    for name, loc in list(A.SOCKETS.items()) + list(emit.items()):
+    for name, loc in list(A.SOCKETS.items()) + list(A.EMIT_SOCKETS.items()):
         s = bpy.data.objects.new(name, None)
         s.empty_display_type = 'PLAIN_AXES'
         s.empty_display_size = 0.012

@@ -23,7 +23,8 @@ import numpy as np  # noqa: E402
 TEX_DIR = os.path.join(ROOT, 'textures')
 
 # materials that stay as they are (transparent / emissive)
-SPECIAL = {'ar15_glass', 'ar15_glass_dark', 'ar15_reticle', 'ar15_lens_light', 'ar15_lens_laser'}
+SPECIAL = {'ar15_glass', 'ar15_glass_dark', 'ar15_reticle', 'ar15_lens_light', 'ar15_lens_laser', 'ar15_chrome',
+           'ar15_led'}
 
 # surface recipes: base colour, colour variation, roughness, roughness variation, metallic,
 # edge wear (colour, roughness, metallic, amount), bump (grain strength, stipple strength)

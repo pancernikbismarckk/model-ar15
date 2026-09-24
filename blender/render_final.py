@@ -110,6 +110,8 @@ def main():
         shot('detail_grip_mag', (-10.0, -330.0, -170.0), (-110.0, 0.0, -110.0), lens=55)
     if want('detail_holo'):
         shot('detail_holo', (110.0, -250.0, 150.0), (-55.0, 0.0, 62.0), lens=60)
+    if want('detail_light'):
+        shot('detail_light', (545.0, -235.0, 105.0), (330.0, -42.0, 0.0), lens=60)
     if want('detail_grip'):
         shot('detail_grip', (380.0, -230.0, -120.0), (255.0, 0.0, -40.0), lens=60)
     if want('detail_front'):

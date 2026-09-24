@@ -33,8 +33,16 @@ def main():
             if me is not None and me.users == 0:
                 bpy.data.meshes.remove(me)
         e.location = Vector(A.SOCKETS[sock]) * L.S
-    for name, loc in A.SOCKETS.items():
-        bpy.data.objects[name].location = Vector(loc) * L.S
+    root = bpy.data.objects[BW.WEAPON]
+    for name, loc in list(A.SOCKETS.items()) + list(A.EMIT_SOCKETS.items()):
+        ob = bpy.data.objects.get(name)
+        if ob is None:
+            ob = bpy.data.objects.new(name, None)
+            ob.empty_display_type = 'PLAIN_AXES'
+            ob.empty_display_size = 0.012
+            L._COLL['c'].objects.link(ob)
+            L.parent(ob, root)
+        ob.location = Vector(loc) * L.S
     bpy.context.view_layer.update()
     for key, (name, sock) in BW.ATTACHMENT_ROOTS.items():
         e = bpy.data.objects[name]
