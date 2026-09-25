@@ -9,6 +9,7 @@ import math
 
 import bpy
 from mathutils import Euler, Matrix, Quaternion, Vector
+from mathutils.bvhtree import BVHTree
 
 import ped_rig as R
 
@@ -165,3 +166,85 @@ def right_hand_for_weapon(rig, weapon_world):
     """SKEL_R_Hand world matrix that puts the weapon at ``weapon_world``."""
     ph_local = rig.rest['PH_R_Hand']
     return weapon_world @ GRIP_R @ ph_local.inverted()
+
+
+# ---------------------------------------------------------------------------
+# fingers that close on the real mesh
+# ---------------------------------------------------------------------------
+FINGER_R = 0.0105          # finger capsule radius of the mannequin (ped_rig.build_mannequin)
+THUMB_R = 0.012
+TIP_LEN = {0: 0.026, 1: 0.022, 2: 0.022, 3: 0.022, 4: 0.022}
+
+
+def mesh_bvh(objs, to_frame):
+    """BVH of mesh objects in the coordinates given by ``to_frame`` (4x4, world -> frame)."""
+    verts, polys = [], []
+    dg = bpy.context.evaluated_depsgraph_get()
+    for o in objs:
+        ev = o.evaluated_get(dg)
+        me = ev.to_mesh()
+        m = to_frame @ o.matrix_world
+        base = len(verts)
+        verts.extend(m @ v.co for v in me.vertices)
+        polys.extend([base + i for i in p.vertices] for p in me.polygons)
+        ev.to_mesh_clear()
+    return BVHTree.FromPolygons(verts, polys)
+
+
+def _signed_distance(bvh, p):
+    loc, nrm, _i, dist = bvh.find_nearest(p)
+    if loc is None:
+        return 1.0
+    return dist if (p - loc).dot(nrm) >= 0.0 else -dist
+
+
+def fit_fingers(rig, side, hand, bvh, fingers=(1, 2, 3, 4), limits=(95.0, 100.0, 80.0), step=5.0,
+                couple=0.7, spread=None):
+    """Finger curls that wrap the mesh in ``bvh``: base and middle joint are searched together (the
+    tip follows the middle joint by ``couple``), each phalanx should rest on the surface (capsule
+    radius away) and none may sink into it. ``hand`` is the SKEL_<side>_Hand matrix in the BVH's
+    frame. Returns {finger: (base, mid, tip)} for Rig.curl."""
+    sgn = 1.0 if side == 'R' else -1.0
+    out = {}
+    for f in fingers:
+        r = THUMB_R if f == 0 else FINGER_R
+        names = [f'SKEL_{side}_Finger{f}{j}' for j in range(3)]
+        ends = [rig.rest[names[1]].translation, rig.rest[names[2]].translation, Vector((TIP_LEN[f], 0.0, 0.0))]
+        weights = ((0.5, 0.7), (0.9, 1.0), (1.2, 1.5))     # (segment middle, segment end) per phalanx
+
+        def score(ang):
+            m = hand
+            pen = gap = 0.0
+            for j in range(3):
+                loc = rig.rest[names[j]] @ rot_local('Z', sgn * ang[j])
+                if j == 0 and spread and f in spread:
+                    loc = loc @ rot_local('Y', sgn * spread[f])
+                m = m @ loc
+                for t, w in zip((0.5, 1.0), weights[j]):
+                    d = _signed_distance(bvh, m @ (ends[j] * t))
+                    if d < 0.8 * r:
+                        pen += (0.8 * r - d) * w
+                    gap += abs(d - r) * w
+            return pen * 40.0 + gap
+
+        best, best_s = (0.0, 0.0, 0.0), None
+        a0 = 0.0
+        while a0 <= limits[0]:
+            a1 = 0.0
+            while a1 <= limits[1]:
+                ang = (a0, a1, min(limits[2], a1 * couple))
+                sc = score(ang)
+                if best_s is None or sc < best_s:
+                    best, best_s = ang, sc
+                a1 += step
+            a0 += step
+        # refine around the best
+        b0, b1 = best[0], best[1]
+        for d0 in (-2.5, 0.0, 2.5):
+            for d1 in (-2.5, 0.0, 2.5):
+                ang = (max(0.0, b0 + d0), max(0.0, b1 + d1), min(limits[2], max(0.0, b1 + d1) * couple))
+                sc = score(ang)
+                if sc < best_s:
+                    best, best_s = ang, sc
+        out[f] = tuple(round(x, 1) for x in best)
+    return out

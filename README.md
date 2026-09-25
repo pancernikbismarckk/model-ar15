@@ -79,9 +79,12 @@ Wypiekane (bake) atlasy PBR w `textures/`:
 | `ar15_weapon_*` | 2048 × 2048 | `basecolor` (z AO), `orm` (R = AO, G = roughness, B = metallic), `normal` (OpenGL) |
 | `ar15_attachments_*` | 2048 × 2048 | jak wyżej |
 
-Detal powierzchni: ziarno anodowanego aluminium, delikatne przetarcia krawędzi, faktura fosforanowanej
-stali, stipple polimeru, radełkowanie chwytu, AO w zagłębieniach. Źródłowe materiały proceduralne
-(`*__detail`) zostają w pliku .blend, więc bake można powtórzyć skryptem `blender/texture_bake.py`.
+Wygląd jest dobrany do broni z GTA V (w stylu Carbine Rifle, bez żadnych napisów): komora w ciepłym,
+ciemnym grafitowym anodowaniu, łoże w chłodniejszym odcieniu, fosforanowana stal, czarny polimer ze
+stipplem, niklowane suwadło widoczne w oknie wyrzutowym. Na krawędziach jasne przetarcia do gołego
+metalu, w zagłębieniach kurz i AO, do tego rysy w pojedynczych miejscach i radełkowanie chwytu.
+Receptury materiałów są w `blender/texture_bake.py` (`RECIPES`, `PART_RECIPE`), a materiały
+proceduralne (`*__detail`) zostają w pliku .blend, więc bake można powtórzyć skryptem.
 
 ## Hierarchia i punkty obrotu (pod animacje)
 
@@ -120,7 +123,10 @@ Sockety (empty) dla silnika: `socket_muzzle`, `socket_shell_eject`, `socket_grip
 ## Wersja do gry (FiveM / GTA V)
 
 Siatka jest budowana tymi samymi skryptami w trybie niskiego detalu, a cały detal high-poly
-(fazowania, radełkowanie, śruby, faktury, przetarcia) jest wypiekany na mapy normal/kolor/ORM.
+(fazowania, radełkowanie, śruby, faktury, przetarcia) jest wypiekany na mapy normal/kolor/ORM
+wprost z materiałów proceduralnych high-poly (jedno próbkowanie, 16 próbek na piksel, więc tekstura
+jest ostra i bez schodków). Tekstury do gry: broń 2048 px (kolor, normal) i 1024 px (spec),
+dodatki 1024 px; cały `w_ar_ar15.ytd` ma 5,4 MB.
 
 | Część | Trójkąty |
 |---|---:|
@@ -197,11 +203,23 @@ Klawisze → FiveM, „AR-15: laser wł./wył.”); promień widzą też inni gr
   gry (CodeWalker); składnia Lua; wpisy ox_inventory; build jest powtarzalny (identyczne sumy MD5).
 - Do sprawdzenia w grze (nie da się tu uruchomić GTA): ułożenie broni w dłoni (kość `Gun_GripR`
   skopiowana z waniliowego karabinu), przesunięcia widoku z pierwszej osoby (`FirstPerson*` w
-  `weapons.meta`), punkt świecenia latarki i mocowanie lasera na `WAPSupp_2`. Wartości balansu
-  (obrażenia 32, 30 naboi, szybkostrzelność 0,12 s) to punkt wyjścia do własnych ustawień.
+  `weapons.meta`), punkt świecenia latarki i mocowanie lasera na `WAPSupp_2`. Broń strzela tylko
+  ogniem pojedynczym (bez flagi `Automatic`, najwyżej jeden strzał na 0,15 s). Wartości balansu
+  (obrażenia 32, 30 naboi) to punkt wyjścia do własnych ustawień.
 - Animacje z `weapon_ar15_game.blend` to animacje modelu (suwadło, pokrywa, magazynek). W grze postać
   używa animacji karabinka z gry, a błysk z lufy i wyrzut łusek to efekty GTA na kościach
   `Gun_Muzzle` i `Gun_VFX_Eject`. Kości ruchomych części są w `.ydr`, gotowe pod słownik animacji `.ycd`.
+
+## Animacje postaci (do akceptacji)
+
+`blender/ar15_anims.py` robi animacje na szkielecie peda GTA V (`blender/ped_rig.py`,
+`blender/data_ped_skeleton.json`), z bronią trzymaną tak, jak trzyma ją gra (`Gun_GripR` na
+`PH_R_Hand`). Klipy (30 kl./s): `hold` (trzymanie nisko przez klatkę, pętla 4 s), `reload` (2,0 s)
+i `reload_empty` (2,4 s) w rytmie przeładowania Carbine Rifle z GTA V (magazynek wypada, nowy z pasa
+przy lewym biodrze, na pusto uderzenie w zatrzask zamka), `fire` / `fire_last` dla samej broni oraz
+`shot` / `empty` tylko do podglądu. Palce lewej dłoni zaciskają się na prawdziwej siatce broni
+(`ped_anim.fit_fingers`). Podgląd: `python3 blender/ar15_anims.py --out <katalog>` zapisuje .blend,
+glTF i zdarzenia (łuski, wypadnięcie magazynka) do `ar15_anims.json`.
 
 ## Odtworzenie modelu
 
@@ -214,6 +232,7 @@ python3 blender/texture_bake.py 2048            # atlasy UV + bake tekstur
 python3 blender/export_all.py                   # GLB + FBX z teksturami
 python3 blender/render_final.py 96              # rendery do renders/
 python3 blender/build_game.py                   # wersja do gry: siatka LOD, bake, szkielet, animacje
+python3 blender/ar15_anims.py                   # animacje postaci (export/anims)
 ```
 
 Pliki FiveM (Linux, bez Windowsa i bez GTA):

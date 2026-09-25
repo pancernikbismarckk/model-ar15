@@ -1,0 +1,123 @@
+{
+ "fps": 30,
+ "clips": {
+  "hold": {
+   "frames": 120,
+   "loop": true,
+   "ped": true,
+   "events": [],
+   "miss_r_mm": 0.0,
+   "miss_l_mm": 0.0
+  },
+  "reload": {
+   "frames": 60,
+   "loop": false,
+   "ped": true,
+   "events": [
+    [
+     13,
+     "mag_drop"
+    ]
+   ],
+   "miss_r_mm": 0.0,
+   "miss_l_mm": 0.0
+  },
+  "reload_empty": {
+   "frames": 72,
+   "loop": false,
+   "ped": true,
+   "events": [
+    [
+     13,
+     "mag_drop"
+    ]
+   ],
+   "miss_r_mm": 0.0,
+   "miss_l_mm": 0.0
+  },
+  "fire": {
+   "frames": 6,
+   "loop": false,
+   "ped": false,
+   "events": [
+    [
+     0,
+     "shot"
+    ],
+    [
+     1,
+     "shell"
+    ]
+   ],
+   "miss_r_mm": 0.0,
+   "miss_l_mm": 0.0
+  },
+  "fire_last": {
+   "frames": 6,
+   "loop": false,
+   "ped": false,
+   "events": [
+    [
+     0,
+     "shot"
+    ],
+    [
+     1,
+     "shell"
+    ]
+   ],
+   "miss_r_mm": 0.0,
+   "miss_l_mm": 0.0
+  },
+  "shot": {
+   "frames": 42,
+   "loop": false,
+   "ped": true,
+   "events": [
+    [
+     12,
+     "shot"
+    ],
+    [
+     13,
+     "shell"
+    ]
+   ],
+   "miss_r_mm": 0.0,
+   "miss_l_mm": 0.0
+  },
+  "empty": {
+   "frames": 56,
+   "loop": false,
+   "ped": true,
+   "events": [
+    [
+     12,
+     "shot"
+    ],
+    [
+     13,
+     "shell"
+    ],
+    [
+     20,
+     "shot"
+    ],
+    [
+     21,
+     "shell"
+    ],
+    [
+     28,
+     "shot"
+    ],
+    [
+     29,
+     "shell"
+    ]
+   ],
+   "miss_r_mm": 0.0,
+   "miss_l_mm": 0.0
+  }
+ }
+}

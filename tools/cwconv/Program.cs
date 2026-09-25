@@ -1,11 +1,12 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Xml;
 using CodeWalker.GameFiles;
 
-// cwconv xml2bin <in.ydr.xml|in.ytd.xml> <out_dir>   -> writes <name>.ydr / <name>.ytd
-// cwconv check <file.ydr|file.ytd>                     -> loads the binary and prints a summary
-// cwconv bin2xml <file.ydr|file.ytd> <out_dir>          -> CodeWalker XML (+ DDS textures in <out_dir>/<name>/)
+// cwconv xml2bin <in.{ydr,ytd,ycd,ytyp}.xml> <out_dir> -> writes <name>.ydr / .ytd / .ycd / .ytyp
+// cwconv check <file.{ydr,ytd,ycd,ytyp}>               -> loads the binary and prints a summary
+// cwconv bin2xml <file.{ydr,ytd,ycd}> <out_dir>        -> CodeWalker XML (+ DDS textures in <out_dir>/<name>/)
 static class Program
 {
     static int Main(string[] args)
@@ -41,6 +42,18 @@ static class Program
             data = ytd.Save();
             outName = name.Substring(0, name.Length - 4);
         }
+        else if (name.EndsWith(".ycd.xml"))
+        {
+            data = XmlYcd.GetYcd(xml).Save();
+            outName = name.Substring(0, name.Length - 4);
+        }
+        else if (name.EndsWith(".ytyp.xml"))
+        {
+            var doc = new XmlDocument();
+            doc.LoadXml(xml);
+            data = XmlMeta.GetRSCData(doc) ?? throw new Exception("empty ytyp");
+            outName = name.Substring(0, name.Length - 4);
+        }
         else throw new Exception("unsupported file " + name);
         string outPath = Path.Combine(outDir, outName);
         File.WriteAllBytes(outPath, data);
@@ -57,6 +70,7 @@ static class Program
         string xml;
         if (path.EndsWith(".ydr")) { var ydr = new YdrFile(); ydr.Load(data); xml = YdrXml.GetXml(ydr, folder); }
         else if (path.EndsWith(".ytd")) { var ytd = new YtdFile(); ytd.Load(data); xml = YtdXml.GetXml(ytd, folder); }
+        else if (path.EndsWith(".ycd")) { var ycd = new YcdFile(); RpfFile.LoadResourceFile(ycd, data, 46); xml = YcdXml.GetXml(ycd); }
         else throw new Exception("unsupported file " + name);
         File.WriteAllText(Path.Combine(outDir, name + ".xml"), xml);
         Console.WriteLine(Path.Combine(outDir, name + ".xml"));
@@ -94,6 +108,31 @@ static class Program
             var ytd = new YtdFile();
             ytd.Load(data);
             Console.WriteLine($"{Path.GetFileName(path)}: " + string.Join(", ", ytd.TextureDict.Textures.data_items.Select(t => $"{t.Name} {t.Width}x{t.Height} {t.Format} mips={t.Levels}")));
+        }
+        else if (path.EndsWith(".ycd"))
+        {
+            var ycd = new YcdFile();
+            RpfFile.LoadResourceFile(ycd, data, 46);
+            Console.WriteLine($"{Path.GetFileName(path)}: {ycd.ClipMapEntries?.Length ?? 0} clips, {ycd.AnimMapEntries?.Length ?? 0} animations");
+            foreach (var c in ycd.ClipMapEntries ?? new ClipMapEntry[0])
+            {
+                var clip = c.Clip;
+                string anim = "";
+                if (clip is ClipAnimation ca && ca.Animation != null)
+                {
+                    var a = ca.Animation;
+                    var bones = a.BoneIds?.data_items ?? new AnimationBoneId[0];
+                    anim = $" -> {a.Frames} frames {a.Duration:0.###}s, {bones.Length} tracks (bones {bones.Select(b => b.BoneId).Distinct().Count()})"
+                         + $", {ca.StartTime:0.###}-{ca.EndTime:0.###}s rate {ca.Rate}";
+                }
+                Console.WriteLine($"  clip '{clip?.ShortName ?? clip?.Name}'{anim}");
+            }
+        }
+        else if (path.EndsWith(".ytyp"))
+        {
+            var ytyp = new YtypFile();
+            ytyp.Load(data);
+            Console.WriteLine($"{Path.GetFileName(path)}: " + string.Join(", ", (ytyp.AllArchetypes ?? new Archetype[0]).Select(a => $"{a.Name} (lod {a._BaseArchetypeDef.lodDist}, flags {a._BaseArchetypeDef.flags}, txd {a._BaseArchetypeDef.textureDictionary})")));
         }
         return 0;
     }

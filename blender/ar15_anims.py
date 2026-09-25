@@ -7,16 +7,17 @@ on the ped's PH_R_Hand), so the right arm follows the rifle; the left hand is pl
 on the magazine or on the bolt catch and both arms are solved with IK (ped_anim.py). Every frame
 is baked. Clips:
 
-  ped + weapon, used in game
+  ped + weapon, used in game (paced like GTA V's Carbine Rifle reload)
     hold          loop: low ready across the chest, muzzle down to the left, breathing
-    reload        rounds left: magazine out and into the vest pouch, fresh one in
-    reload_empty  bolt locked back: empty magazine drops free, fresh one from the pouch,
-                  bolt catch slapped, carrier slams home
+    reload        magazine pulled and dropped, a fresh one from the belt at the left hip, seated
+    reload_empty  the same with the bolt locked back, then the bolt catch is slapped and the
+                  carrier slams home
   weapon only, used in game (the ped aims and recoils with GTA's own carbine animations)
-    fire          one shot: trigger, carrier cycles, dust cover pops open
+    fire          one shot (semi-automatic only): trigger, carrier cycles, dust cover pops open
     fire_last     last round: carrier locks back on the bolt catch
   preview only (GTA-like shouldered aim, to show firing in context)
-    shot, burst, burst_empty
+    shot          one aimed shot
+    empty         three single shots, the last one locks the bolt back
 
 The weapon armature of every clip is named like the clip (NLA track names match), and the
 magazine rides on WAPClip, so in the game the weapon clip moves the magazine with the hand.
@@ -34,7 +35,7 @@ sys.path.insert(0, HERE)
 
 import bpy  # noqa: E402
 import bmesh  # noqa: E402
-from mathutils import Matrix, Quaternion, Vector  # noqa: E402
+from mathutils import Matrix, Vector  # noqa: E402
 
 import ped_anim as A  # noqa: E402
 import ped_rig as R  # noqa: E402
@@ -46,10 +47,7 @@ F, L, U = A.FWD, A.LEFT, A.UP
 # weapon space (m): +X muzzle, +Y left side, +Z up
 WAPCLIP = Vector((-44.0, 0.0, -16.5)) * MM
 HG_Z0, HG_APO = 2.3 * MM, 22.0 * MM            # handguard octagon centre / apothem
-GRIP_L_X = 136.5 * MM                           # Gun_GripL (GTA's support hand point)
-HOLO_EYE = Vector((-109.0 - 80.0, 0.0, 73.1)) * MM   # eye point 8 cm behind the holo window
-BUTT = Vector((-392.0, 0.0, -45.0)) * MM
-MAG_TOP_Z = 9.6 * MM                            # top of the magazine above WAPClip
+BUTT = Vector((-392.0, 0.0, -45.0)) * MM        # centre of the buttpad
 MAG_CLEAR = 82.0 * MM                           # pull needed to clear the magwell
 
 # weapon part motion (same values as game_rig.py)
@@ -57,14 +55,15 @@ BOLT_TRAVEL, BOLT_LOCKED = 82.0, 78.0
 TRIGGER_PULL, COVER_OPEN = 12.0, 106.0
 CATCH_UP, CATCH_PRESS, MAGREL_PRESS = -7.0, 6.0, 3.0
 
-# vest pouch (ped space): magazine standing in it, front of the magazine towards the ped's centre
-POUCH = Vector((0.085, -0.122, 0.155))          # pouch centre
-POUCH_SIZE = Vector((0.080, 0.040, 0.140))
+# magazine pouch on the belt at the left hip (ped space), where GTA's peds take a fresh magazine
+POUCH = Vector((0.115, -0.100, 0.000))          # pouch centre
+POUCH_SIZE = Vector((0.075, 0.040, 0.120))
 # magazine frame standing in the pouch: its front (+X) towards the ped's right, its left face (+Y)
-# forward, feed lips up
-MAG_IN_POUCH = Matrix(((-1.0, 0.0, 0.0, 0.095), (0.0, -1.0, 0.0, -0.122), (0.0, 0.0, 1.0, 0.262), (0, 0, 0, 1)))
-POUCH_LIFT = 0.155                              # draw height that clears the pouch
-MAG_HIDDEN_Y = 0.055                            # pushed back into the torso until the hand takes it
+# forward, feed lips up, the top 4.5 cm out of the pouch
+MAG_IN_POUCH = Matrix(((-1.0, 0.0, 0.0, 0.125), (0.0, -1.0, 0.0, -0.100), (0.0, 0.0, 1.0, 0.0954),
+                       (0, 0, 0, 1)))
+POUCH_LIFT = 0.14                               # draw height that clears the pouch
+MAG_HIDDEN = (-0.04, 0.06)                      # (down, back into the hip) until the hand takes it
 
 
 # ---------------------------------------------------------------------------
@@ -293,7 +292,7 @@ HOLD_W = weapon_at((-0.04, -0.17, 0.24), ped_dir(0.55, 0.30, -0.75), (0, 1, 0))
 HOLD_P = posture(lean=5.0, hpitch=4.0, clp=12.0)
 HOLD_LH = hg_grip(0.045)
 
-RELOAD_W = weapon_at((-0.07, -0.20, 0.30), ped_dir(0.30, 0.85, -0.40), ped_dir(0.77, 0.0, 0.64))
+RELOAD_W = weapon_at((-0.06, -0.21, 0.25), ped_dir(0.34, 0.82, -0.46), ped_dir(0.77, 0.0, 0.64))
 RELOAD_P = posture(lean=9.0, hpitch=24.0, hyaw=8.0, clp=16.0, cle=2.0,
                    pole_r=(-0.5, 0.1, -1.0), pole_l=(0.8, 0.3, -0.6))
 
@@ -314,6 +313,30 @@ AIM_P = posture(lean=10.0, hpitch=20.0, hroll=14.0, hyaw=14.0, twist=-16.0, crp=
                 pole_r=(-0.9, 0.2, -0.6), pole_l=(0.2, -0.2, -1.0))
 AIM_LH = hg_grip(0.095)
 POCKET_LOCAL = None        # set in init_constants (needs the skeleton)
+
+
+def fit_hands(rig, weapon):
+    """Left-hand finger curls that close on the real weapon mesh (handguard, magazine body, top of
+    the magazine); trigger-finger variants of the right-hand grip."""
+    global R_TRIGGER, R_PRESS, L_HG, L_MAG, L_PINCH
+    obj = bpy.data.objects
+    to_w = weapon.matrix_world.inverted()
+    body = A.mesh_bvh([obj['ar15_body'], obj['ar15_trigger']], to_w)
+    mag = A.mesh_bvh([o for o in obj if o.type == 'MESH' and o.name.startswith('ar15_magazine')],
+                     Matrix.Translation(WAPCLIP).inverted() @ to_w)
+    # the right hand sits exactly where GTA puts it (PH_R_Hand on Gun_GripR); its hand-set curls
+    # already close round the grip, only the trigger finger is posed per use
+    R_TRIGGER = {**R_GRIP, 1: (10.0, 24.0, 18.0)}
+    R_PRESS = {**R_GRIP, 1: (0.0, 6.0, 3.0)}
+    wrist = lambda t: t.m @ Matrix.Translation((-t.palm, -0.004, -0.017))
+    L_HG = A.fit_fingers(rig, 'L', wrist(HOLD_LH), body)
+    L_HG.update(A.fit_fingers(rig, 'L', wrist(HOLD_LH), body, fingers=(0,), limits=(40.0, 40.0, 35.0)))
+    L_MAG = A.fit_fingers(rig, 'L', wrist(MAG_BODY), mag)
+    L_MAG.update(A.fit_fingers(rig, 'L', wrist(MAG_BODY), mag, fingers=(0,), limits=(40.0, 40.0, 35.0)))
+    L_PINCH = A.fit_fingers(rig, 'L', wrist(MAG_TOPGRIP), mag)
+    L_PINCH.update(A.fit_fingers(rig, 'L', wrist(MAG_TOPGRIP), mag, fingers=(0,), limits=(40.0, 40.0, 35.0)))
+    for n, v in (('L_HG', L_HG), ('L_MAG', L_MAG), ('L_PINCH', L_PINCH)):
+        print(f'  fingers {n}: ' + ' '.join(f'{f}:{a}' for f, a in sorted(v.items())))
 
 
 def init_constants(rig):
@@ -348,68 +371,63 @@ def make_hold():
     return c
 
 
-def make_reload():
-    """Magazine with rounds left: out, stowed in the vest pouch, the fresh one drawn and seated."""
-    c = Clip('reload', 76)
-    c.weapon = Track((0, HOLD_W), (10, RELOAD_W), (60, RELOAD_W), (72, HOLD_W))
-    c.posture = Track((0, HOLD_P), (10, RELOAD_P),
-                      (24, posture(lean=11.0, hpitch=30.0, hyaw=14.0, twist=4.0, clp=18.0, cle=2.0,
-                                   pole_r=(-0.5, 0.1, -1.0), pole_l=(0.8, 0.1, -0.7))),
-                      (40, posture(lean=11.0, hpitch=30.0, hyaw=14.0, twist=4.0, clp=18.0, cle=2.0,
-                                   pole_r=(-0.5, 0.1, -1.0), pole_l=(0.8, 0.1, -0.7))),
-                      (52, RELOAD_P), (60, RELOAD_P), (72, HOLD_P))
-    c.mag = Track((0, mag_seated()), (12, mag_seated()),
-                  (18, mag_seated(MAG_CLEAR), 'in'),
-                  (28, mag_pouch(POUCH_LIFT)),
-                  (33, mag_pouch(0.0)),
-                  (37, mag_pouch(0.0)),
-                  (42, mag_pouch(POUCH_LIFT), 'in'),
-                  (52, mag_seated(MAG_CLEAR, 4.0)),
-                  (56, mag_seated(-0.0015), 'in'),
-                  (58, mag_seated()))
-    c.lh = Track((0, HOLD_LH), (10, MAG_BODY), (18, MAG_BODY), (27, MAG_TOPGRIP), (33, MAG_TOPGRIP),
-                 (34, MAG_TOPGRIP), (37, MAG_TOPGRIP), (44, MAG_TOPGRIP), (50, MAG_BODY), (58, MAG_BODY),
-                 (68, HOLD_LH))
-    c.fl = Track((0, L_HG), (5, L_OPEN), (10, L_MAG), (18, L_MAG), (27, L_PINCH), (33, L_PINCH),
-                 (35, L_OPEN), (37, L_PINCH), (44, L_PINCH), (50, L_MAG), (58, L_MAG), (62, L_OPEN), (68, L_HG))
-    c.fr = Track((0, R_GRIP), (8, R_PRESS), (14, R_PRESS), (18, R_GRIP))
-    c.parts['magrelease'] = Track((0, 0.0), (10, 0.0), (12, MAGREL_PRESS), (15, MAGREL_PRESS), (17, 0.0))
+RELOAD_LOOK = posture(lean=12.0, hpitch=30.0, hyaw=16.0, twist=5.0, clp=14.0, cle=0.0,
+                      pole_r=(-0.5, 0.1, -1.0), pole_l=(0.9, 0.2, -0.5))   # looking down at the belt
+
+
+def _reload(name, frames, empty):
+    """GTA V Carbine Rifle style: the magazine is pulled and let go (it falls), the left hand takes a
+    fresh one from the belt at the left hip and seats it; on an empty gun it then slaps the bolt
+    catch. Frame 0 and the last frame are the hold pose."""
+    c = Clip(name, frames)
+    grab, out, drop = 7, 12, 13           # hand on the magazine, magazine clear, let go
+    pouch, drawn, entry, seat = 21, 25, 34, 38
+    back = 44 if not empty else 56        # hand leaves the magazine for the handguard
+    c.weapon = Track((0, HOLD_W), (8, RELOAD_W), (back, RELOAD_W), (frames - 4, HOLD_W))
+    c.posture = Track((0, HOLD_P), (8, RELOAD_P), (14, RELOAD_LOOK), (pouch + 3, RELOAD_LOOK),
+                      (entry, RELOAD_P), (back, RELOAD_P), (frames - 4, HOLD_P))
+    c.events.append((drop, 'mag_drop'))
+    hid = mag_pouch(MAG_HIDDEN[0], MAG_HIDDEN[1])
+    c.mag = Track((0, mag_seated()), (grab + 1, mag_seated()),
+                  (out, mag_seated(MAG_CLEAR), 'in'),
+                  (drop, mag_seated(MAG_CLEAR * 1.15)),
+                  (drop + 1, hid, 'step'),             # the one let go is a falling prop from here
+                  (pouch - 3, hid),
+                  (pouch, mag_pouch(0.0)),
+                  (drawn, mag_pouch(POUCH_LIFT), 'in'),
+                  (entry, mag_seated(MAG_CLEAR, 5.0)),
+                  (seat, mag_seated(-0.002), 'in'),
+                  (seat + 2, mag_seated()))
+    below_catch = Tgt('weapon', CATCH_SLAP.m @ Matrix.Translation((0, 0, -0.06)), palm=0.016)
+    lh = [(0, HOLD_LH), (grab, MAG_BODY), (drop, MAG_BODY),
+          (pouch, MAG_TOPGRIP), (drawn, MAG_TOPGRIP), (entry, MAG_BODY), (seat + 3, MAG_BODY)]
+    fl = [(0, L_HG), (4, L_OPEN), (grab, L_MAG), (drop, L_MAG), (drop + 3, L_OPEN), (pouch - 1, L_OPEN),
+          (pouch + 1, L_PINCH), (drawn, L_PINCH), (entry, L_MAG), (seat + 3, L_MAG)]
+    if empty:
+        slap = seat + 11
+        lh += [(slap - 4, below_catch), (slap, CATCH_SLAP), (slap + 2, CATCH_SLAP), (back + 8, HOLD_LH)]
+        fl += [(slap - 5, L_FLAT), (slap + 2, L_FLAT), (slap + 6, L_OPEN), (back + 8, L_HG)]
+        c.parts['bolt'] = Track((0, -BOLT_LOCKED), (slap + 1, -BOLT_LOCKED), (slap + 3, 0.0, 'in'))
+        c.parts['boltcatch'] = Track((0, CATCH_UP), (slap - 1, CATCH_UP), (slap + 1, CATCH_PRESS, 'lin'),
+                                     (slap + 3, CATCH_PRESS), (slap + 6, 0.0))
+    else:
+        lh += [(back + 8, HOLD_LH)]
+        fl += [(back + 2, L_OPEN), (back + 8, L_HG)]
+    c.lh = Track(*lh)
+    c.fl = Track(*fl)
+    c.fr = Track((0, R_GRIP), (grab - 2, R_PRESS), (out, R_PRESS), (out + 3, R_GRIP))
+    c.parts['magrelease'] = Track((0, 0.0), (grab, 0.0), (grab + 2, MAGREL_PRESS), (out, MAGREL_PRESS),
+                                  (out + 2, 0.0))
     c.parts['dustcover'] = Track((0, COVER_OPEN))
     return c
+
+
+def make_reload():
+    return _reload('reload', 60, empty=False)
 
 
 def make_reload_empty():
-    """Bolt locked back: the empty magazine drops, a fresh one from the pouch, bolt catch slapped."""
-    c = Clip('reload_empty', 86)
-    look = posture(lean=11.0, hpitch=30.0, hyaw=14.0, twist=4.0, clp=18.0, cle=2.0,
-                   pole_r=(-0.5, 0.1, -1.0), pole_l=(0.8, 0.1, -0.7))
-    c.weapon = Track((0, HOLD_W), (10, RELOAD_W), (64, RELOAD_W), (78, HOLD_W))
-    c.posture = Track((0, HOLD_P), (10, RELOAD_P), (16, look), (24, look), (36, RELOAD_P),
-                      (64, RELOAD_P), (78, HOLD_P))
-    drop = 8
-    c.events.append((drop, 'mag_drop'))
-    c.mag = Track((0, mag_seated()), (drop, mag_seated()),
-                  (drop + 1, mag_pouch(-0.03, MAG_HIDDEN_Y), 'step'),   # the dropped one is a prop now
-                  (13, mag_pouch(-0.03, MAG_HIDDEN_Y)),
-                  (17, mag_pouch(0.0)),
-                  (26, mag_pouch(POUCH_LIFT), 'in'),
-                  (36, mag_seated(MAG_CLEAR, 4.0)),
-                  (40, mag_seated(-0.0015), 'in'),
-                  (42, mag_seated()))
-    c.lh = Track((0, HOLD_LH), (17, MAG_TOPGRIP), (26, MAG_TOPGRIP),
-                 (34, MAG_BODY), (42, MAG_BODY), (50, Tgt('weapon', CATCH_SLAP.m @ Matrix.Translation((0, 0, -0.05)),
-                                                          palm=0.016)),
-                 (53, CATCH_SLAP), (55, CATCH_SLAP), (68, HOLD_LH))
-    c.fl = Track((0, L_HG), (6, L_OPEN), (14, L_OPEN), (18, L_PINCH), (26, L_PINCH), (34, L_MAG), (42, L_MAG),
-                 (48, L_FLAT), (55, L_FLAT), (62, L_OPEN), (68, L_HG))
-    c.fr = Track((0, R_GRIP), (4, R_PRESS), (10, R_PRESS), (14, R_GRIP))
-    c.parts['magrelease'] = Track((0, 0.0), (5, 0.0), (7, MAGREL_PRESS), (10, MAGREL_PRESS), (12, 0.0))
-    c.parts['bolt'] = Track((0, -BOLT_LOCKED), (53, -BOLT_LOCKED), (55, 0.0, 'in'))
-    c.parts['boltcatch'] = Track((0, CATCH_UP), (51, CATCH_UP), (53, CATCH_PRESS, 'lin'), (55, CATCH_PRESS),
-                                 (58, 0.0))
-    c.parts['dustcover'] = Track((0, COVER_OPEN))
-    return c
-
+    return _reload('reload_empty', 72, empty=True)
 
 
 def weapon_fire(name, last=False):
@@ -429,7 +447,8 @@ def weapon_fire(name, last=False):
 
 # preview: shouldered aim and firing ------------------------------------------------------------
 def make_fire_sequence(rig, name, shots, interval, last_empty=False):
-    """Hold -> shoulder -> ``shots`` rounds -> hold (preview of the weapon clips in context)."""
+    """Hold -> shoulder -> ``shots`` single shots ``interval`` frames apart -> hold (preview of the
+    weapon clips in context)."""
     up, first = 9, 12
     end_fire = first + interval * (shots - 1) + 8
     frames = end_fire + 22 if not last_empty else end_fire + 20
@@ -463,11 +482,9 @@ def make_fire_sequence(rig, name, shots, interval, last_empty=False):
         final = i == len(shot_frames) - 1
         lastshot = last_empty and final
         if i == 0:
-            trig += [(s - 1, 0.0)]
             cover += [(s, 0.0), (s + 1, COVER_OPEN)]
-        trig += [(s, TRIGGER_PULL)]
-        if final:
-            trig += [(s + 3, TRIGGER_PULL), (s + 4, 0.0)]
+        # semi-automatic: every shot is its own trigger pull and reset
+        trig += [(s - 1, 0.0), (s, TRIGGER_PULL), (s + 3, TRIGGER_PULL), (s + 5, 0.0)]
         bolt += [(s, 0.0), (s + 1, -BOLT_TRAVEL)]
         bolt += [(s + 2, -BOLT_LOCKED)] if lastshot else [(s + 2, -30.0), (s + 3, 0.0)]
         if lastshot:
@@ -535,7 +552,6 @@ def bake(rig, ped, weapon, clip, report):
     w_act.use_fake_user = True
     weapon.animation_data_create()
     weapon.animation_data.action = w_act
-    wap_rest = weapon.data.bones['WAPClip'].matrix_local
     mag_rest = Matrix.Translation(WAPCLIP)
     misses = [0.0, 0.0]
     prev_q = {}
@@ -619,7 +635,7 @@ def show_pose(rig, ped, weapon, clip, f):
 # scene
 # ---------------------------------------------------------------------------
 def build_pouch(arm):
-    """Rifle magazine pouch on the vest (preview; in game the ped's own vest is used)."""
+    """Rifle magazine pouch on the belt at the left hip (preview only)."""
     mat = bpy.data.materials.get('ped_pouch') or bpy.data.materials.new('ped_pouch')
     mat.use_nodes = True
     mat.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (0.02, 0.022, 0.02, 1)
@@ -637,7 +653,7 @@ def build_pouch(arm):
     mw = ob.matrix_world.copy()
     ob.parent = arm
     ob.parent_type = 'BONE'
-    ob.parent_bone = 'SKEL_Spine2'
+    ob.parent_bone = 'SKEL_Pelvis'
     ob.matrix_world = mw
     return ob
 
@@ -659,6 +675,8 @@ def build_scene(weapon_blend, attachments=('holo',)):
     rig.apply(rig.new_pose())
     bpy.context.view_layer.update()
     A.attach_weapon(weapon, ped)
+    bpy.context.view_layer.update()
+    fit_hands(rig, weapon)
     return rig, ped, weapon
 
 
@@ -681,9 +699,8 @@ def export_preview(out_dir, name='ar15_anims'):
 def make_clips(rig):
     return [make_hold(), make_reload(), make_reload_empty(),
             weapon_fire('fire'), weapon_fire('fire_last', last=True),
-            make_fire_sequence(rig, 'shot', 1, 6),
-            make_fire_sequence(rig, 'burst', 6, 3),
-            make_fire_sequence(rig, 'burst_empty', 3, 3, last_empty=True)]
+            make_fire_sequence(rig, 'shot', 1, 8),
+            make_fire_sequence(rig, 'empty', 3, 8, last_empty=True)]
 
 
 def main():
