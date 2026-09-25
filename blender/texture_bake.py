@@ -26,31 +26,55 @@ TEX_DIR = os.path.join(ROOT, 'textures')
 SPECIAL = {'ar15_glass', 'ar15_glass_dark', 'ar15_reticle', 'ar15_lens_light', 'ar15_lens_laser', 'ar15_chrome',
            'ar15_led'}
 
-# surface recipes: base colour, colour variation, roughness, roughness variation, metallic,
-# edge wear (colour, roughness, metallic, amount), bump (grain strength, stipple strength)
+# surface recipes (linear colours): base colour, colour variation, roughness, roughness variation,
+# metallic, edge wear (colour, roughness, metallic, amount), bump (grain strength / scale, stipple),
+# scratches, cavity dust. Tuned to read like GTA V's own weapon textures: dark but not black, clear
+# material separation, bright worn edges and dirt in the recesses.
 RECIPES = {
-    'ar15_aluminum_anodized': dict(col=(0.024, 0.024, 0.026), var=0.20, rough=0.44, rvar=0.12, metal=0.45,
-                                   wear=((0.30, 0.30, 0.31), 0.32, 1.0, 0.50), grain=0.55, gscale=800.0,
-                                   stipple=0.0, streaks=0.08),
-    'ar15_steel_phosphate': dict(col=(0.030, 0.030, 0.029), var=0.26, rough=0.56, rvar=0.15, metal=0.55,
-                                 wear=((0.30, 0.30, 0.30), 0.34, 1.0, 0.55), grain=0.85, gscale=1000.0,
-                                 stipple=0.0, streaks=0.0),
-    'ar15_polymer': dict(col=(0.035, 0.035, 0.036), var=0.15, rough=0.62, rvar=0.10, metal=0.0,
-                         wear=((0.070, 0.070, 0.072), 0.48, 0.0, 0.35), grain=0.25, gscale=1100.0,
-                         stipple=0.75, streaks=0.0),
-    'ar15_polymer_checkered': dict(col=(0.035, 0.035, 0.036), var=0.12, rough=0.68, rvar=0.08, metal=0.0,
-                                   wear=((0.080, 0.080, 0.082), 0.46, 0.0, 0.35), grain=0.2, gscale=1100.0,
-                                   stipple=0.2, streaks=0.0, checker=True),
-    'ar15_rubber': dict(col=(0.028, 0.028, 0.028), var=0.10, rough=0.86, rvar=0.05, metal=0.0,
-                        wear=((0.05, 0.05, 0.05), 0.8, 0.0, 0.0), grain=0.7, gscale=900.0, stipple=0.35,
-                        streaks=0.0),
+    'ar15_aluminum_anodized': dict(col=(0.04, 0.036, 0.032), var=0.18, rough=0.5, rvar=0.10, metal=0.35,
+                                   wear=((0.3, 0.29, 0.28), 0.34, 1.0, 0.75), grain=0.45, gscale=800.0,
+                                   stipple=0.0, streaks=0.04, scratch=0.55, dust=0.35),
+    'ar15_steel_phosphate': dict(col=(0.027, 0.027, 0.026), var=0.22, rough=0.55, rvar=0.12, metal=0.55,
+                                 wear=((0.26, 0.26, 0.26), 0.34, 1.0, 0.75), grain=0.85, gscale=1000.0,
+                                 stipple=0.0, streaks=0.0, scratch=0.45, dust=0.30),
+    'ar15_polymer': dict(col=(0.029, 0.03, 0.032), var=0.14, rough=0.60, rvar=0.08, metal=0.0,
+                         wear=((0.1, 0.1, 0.105), 0.52, 0.0, 0.55), grain=0.25, gscale=1100.0,
+                         stipple=0.75, streaks=0.0, scratch=0.35, dust=0.40),
+    'ar15_polymer_checkered': dict(col=(0.027, 0.031, 0.037), var=0.10, rough=0.66, rvar=0.06, metal=0.0,
+                                   wear=((0.1, 0.105, 0.11), 0.5, 0.0, 0.5), grain=0.2, gscale=1100.0,
+                                   stipple=0.2, streaks=0.0, checker=True, scratch=0.2, dust=0.45),
+    'ar15_rubber': dict(col=(0.024, 0.024, 0.024), var=0.10, rough=0.86, rvar=0.05, metal=0.0,
+                        wear=((0.06, 0.06, 0.06), 0.8, 0.0, 0.0), grain=0.7, gscale=900.0, stipple=0.35,
+                        streaks=0.0, scratch=0.0, dust=0.35),
     'ar15_brass': dict(col=(0.78, 0.56, 0.26), var=0.10, rough=0.30, rvar=0.08, metal=1.0,
                        wear=((0.85, 0.65, 0.35), 0.2, 1.0, 0.3), grain=0.1, gscale=900.0, stipple=0.0,
-                       streaks=0.0),
+                       streaks=0.0, scratch=0.0, dust=0.0),
     'ar15_copper': dict(col=(0.72, 0.38, 0.22), var=0.10, rough=0.32, rvar=0.08, metal=1.0,
                         wear=((0.8, 0.5, 0.3), 0.2, 1.0, 0.3), grain=0.1, gscale=900.0, stipple=0.0,
-                        streaks=0.0),
+                        streaks=0.0, scratch=0.0, dust=0.0),
+    # variants picked per part (see PART_RECIPE)
+    'anodized_cool': dict(col=(0.034, 0.036, 0.04), var=0.16, rough=0.48, rvar=0.10, metal=0.35,
+                          wear=((0.3, 0.3, 0.31), 0.34, 1.0, 0.75), grain=0.45, gscale=800.0,
+                          stipple=0.0, streaks=0.05, scratch=0.6, dust=0.30),
+    'nickel': dict(col=(0.50, 0.50, 0.49), var=0.10, rough=0.26, rvar=0.08, metal=1.0,
+                   wear=((0.70, 0.70, 0.70), 0.18, 1.0, 0.6), grain=0.25, gscale=1000.0,
+                   stipple=0.0, streaks=0.25, scratch=0.5, dust=0.55),
+    'polymer_mag': dict(col=(0.036, 0.036, 0.036), var=0.12, rough=0.58, rvar=0.08, metal=0.0,
+                        wear=((0.12, 0.12, 0.12), 0.5, 0.0, 0.6), grain=0.25, gscale=1100.0,
+                        stipple=0.55, streaks=0.0, scratch=0.45, dust=0.45),
 }
+PART_RECIPE = {   # (object name, source material) -> recipe
+    ('ar15_handguard', 'ar15_aluminum_anodized'): 'anodized_cool',
+    ('ar15_bolt_carrier', 'ar15_steel_phosphate'): 'nickel',
+    ('ar15_magazine', 'ar15_polymer'): 'polymer_mag',
+}
+
+
+def recipe_key(obj_name, src):
+    base = obj_name.split('__')[0]
+    key = PART_RECIPE.get((base, src), src)
+    return key if key in RECIPES else 'ar15_polymer'
+
 
 # relative texel density in the atlas (hidden internals get less space, the grip more)
 UV_WEIGHT = {
@@ -163,23 +187,47 @@ def build_detail(mat_name, r):
     # edge mask from the bevel normal
     bev = b.node('ShaderNodeBevel')
     bev.samples = 8
-    bev.inputs['Radius'].default_value = 0.0011
+    bev.inputs['Radius'].default_value = 0.0016
     geo = b.node('ShaderNodeNewGeometry')
     dot = b.node('ShaderNodeVectorMath')
     dot.operation = 'DOT_PRODUCT'
     b.link(bev.outputs['Normal'], dot.inputs[0])
     b.link(geo.outputs['Normal'], dot.inputs[1])
-    edge = b.maprange(dot.outputs['Value'], 0.985, 0.90)
+    edge = b.maprange(dot.outputs['Value'], 0.99, 0.88)
     patch = b.noise(obj, 70.0, 3.0, 0.6)           # ~1.5 cm patches of handling wear
-    breakup = b.math('MULTIPLY', b.maprange(patch, 0.48, 0.62), b.maprange(mid, 0.35, 0.6))
+    breakup = b.math('MULTIPLY', b.maprange(patch, 0.42, 0.60), b.maprange(mid, 0.30, 0.58))
     wear = b.math('MULTIPLY', edge, breakup)
+    # a thin bright line right on the sharpest edges, as on GTA's weapons
+    rim = b.maprange(dot.outputs['Value'], 0.95, 0.80)
+    wear = b.math('MAXIMUM', wear, b.math('MULTIPLY', rim, b.maprange(mid, 0.25, 0.5, 0.35, 0.8)))
+    # scratches: thin stretched cells in two directions, only in some patches
+    sc = None
+    if r.get('scratch'):
+        for rot, sx in (((0.3, 0.9, 0.2), 60.0), ((1.2, 0.2, 0.7), 45.0)):
+            mps = b.node('ShaderNodeMapping')
+            b.link(obj, mps.inputs['Vector'])
+            mps.inputs['Rotation'].default_value = rot
+            mps.inputs['Scale'].default_value = (sx, 1.0, 1.0)
+            vs = b.node('ShaderNodeTexVoronoi')
+            vs.feature = 'DISTANCE_TO_EDGE'
+            b.link(mps.outputs['Vector'], vs.inputs['Vector'])
+            vs.inputs['Scale'].default_value = 55.0
+            line = b.maprange(vs.outputs['Distance'], 0.0, 0.035, 1.0, 0.0)
+            sc = line if sc is None else b.math('MAXIMUM', sc, line)
+        spots = b.maprange(b.noise(obj, 22.0, 2.0, 0.5), 0.5, 0.68)
+        sc = b.math('MULTIPLY', sc, spots)
+        wear = b.math('MAXIMUM', wear, b.math('MULTIPLY', sc, r['scratch'] * 0.6))
     wear = b.math('MULTIPLY', wear, r['wear'][3], clamp=True)
 
     ao = b.node('ShaderNodeAmbientOcclusion')
     ao.samples = 16
     ao.only_local = True
-    ao.inputs['Distance'].default_value = 0.004
-    cav = b.maprange(ao.outputs['AO'], 0.0, 1.0, 0.42, 1.0)
+    ao.inputs['Distance'].default_value = 0.006
+    cav = b.maprange(ao.outputs['AO'], 0.0, 1.0, 0.30, 1.0)
+    # dust settles in the recesses (where the AO is low), broken up a little
+    dustm = b.maprange(ao.outputs['AO'], 0.85, 0.45)
+    dustm = b.math('MULTIPLY', dustm, b.maprange(mid, 0.2, 0.7, 0.55, 1.0))
+    dustm = b.math('MULTIPLY', dustm, r.get('dust', 0.0), clamp=True)
 
     # base colour with variation, cavity and wear
     v = b.maprange(big, 0.3, 0.7, 1.0 - r['var'], 1.0 + r['var'], clamp=True)
@@ -196,11 +244,14 @@ def build_detail(mat_name, r):
     for i in range(3):
         b.link(cav, cavc.inputs[i])
     col = b.mix_rgb(1.0, col, cavc.outputs[0], 'MULTIPLY')
+    col = b.mix_rgb(dustm, col, (0.105, 0.095, 0.082))
 
     rough = b.maprange(big, 0.3, 0.7, r['rough'] - r['rvar'], r['rough'] + r['rvar'])
     rough = b.math('ADD', rough, b.maprange(fine, 0.3, 0.7, -0.07, 0.07))
     rough = b.mix_f(wear, rough, r['wear'][1])
+    rough = b.mix_f(dustm, rough, 0.85)
     metal = b.mix_f(wear, r['metal'], r['wear'][2])
+    metal = b.mix_f(dustm, metal, 0.0)
 
     # height for the normal map
     h = b.math('MULTIPLY', fine, r['grain'])
@@ -212,6 +263,8 @@ def build_detail(mat_name, r):
         h = b.math('ADD', h, b.math('MULTIPLY', st, r['stipple']))
     if r['streaks']:
         h = b.math('ADD', h, b.math('MULTIPLY', streak, 0.05))
+    if sc is not None:
+        h = b.math('SUBTRACT', h, b.math('MULTIPLY', sc, 0.25))
     bump = b.node('ShaderNodeBump')
     bump.inputs['Strength'].default_value = 0.6
     bump.inputs['Distance'].default_value = 0.0005
@@ -344,10 +397,10 @@ def bake_group(group, objs, size):
         for i, s in enumerate(o.material_slots):
             src = s.material
             src.use_fake_user = True
-            if src.name not in details:
-                r = RECIPES.get(src.name, RECIPES['ar15_polymer'])
-                details[src.name] = build_detail(src.name, r)
-            s.material = details[src.name][0]
+            key = recipe_key(o.name, src.name)
+            if key not in details:
+                details[key] = build_detail(key, RECIPES[key])
+            s.material = details[key][0]
 
     imgs = {k: new_image(f'{group}_{k}', size, k != 'basecolor')
             for k in ('basecolor', 'rough', 'metal', 'ao', 'normal')}

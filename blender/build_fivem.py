@@ -171,8 +171,9 @@ def _dds(png, fmt):
 
 
 def gta_textures(tex_dir):
-    """Convert the baked PBR atlases. Diffuse gets AO and a darker metal, spec is grey intensity with
-    gloss in alpha (specMapIntMask = R), normal maps get DirectX green."""
+    """Convert the baked PBR atlases. The base colour already carries the cavity AO; diffuse gets a
+    touch more AO and slightly darker metal (GTA adds the metal's shine through the spec map), spec
+    is grey intensity with gloss in alpha (specMapIntMask = R), normal maps get DirectX green."""
     os.makedirs(tex_dir, exist_ok=True)
     out = {}
     for group, key, sizes in (('weapon', 'ar15_weapon', (2048, 2048, 1024)),
@@ -181,7 +182,7 @@ def gta_textures(tex_dir):
         orm = _load(os.path.join(TEX_IN, f'ar15_game_{group}_orm.png'))
         nrm = _load(os.path.join(TEX_IN, f'ar15_game_{group}_normal.png'))
         ao, rough, metal = orm[..., 0], orm[..., 1], orm[..., 2]
-        lin = _srgb_to_lin(base) * ((1.0 - 0.4 * metal) * (0.45 + 0.55 * ao))[..., None]
+        lin = _srgb_to_lin(base) * ((1.0 - 0.22 * metal) * (0.75 + 0.25 * ao))[..., None]
         diffuse = _lin_to_srgb(lin)
         spec = np.clip((0.12 + 0.6 * metal) * (1.0 - rough) ** 0.7 * (0.6 + 0.4 * ao), 0.0, 1.0)
         gloss = np.clip(1.0 - rough, 0.0, 1.0)

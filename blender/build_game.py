@@ -1,6 +1,6 @@
 """Game-ready weapon_ar15 for FiveM / GTA V: < 10k triangles, baked textures, skeleton, animations.
 
-    python3 blender/build_game.py [--size 2048] [--att-size 1024] [--samples 4]
+    python3 blender/build_game.py [--size 2048] [--att-size 1024] [--samples 16]
 
 Input : weapon_ar15.blend (high-poly source with its baked textures: build_weapon_ar15.py,
         then texture_bake.py).
@@ -9,7 +9,9 @@ Output: weapon_ar15_game.blend, export/game/weapon_ar15_game.{fbx,glb}, textures
 The game mesh is built by the same part builders in low-detail mode (ar15lib.set_lod): fewer
 segments, no micro-bevels, small details left out. Everything the high-poly has (edge rounding,
 knurling, screws, stipple, wear, the omitted small parts) is baked onto the low-poly mesh from the
-high-poly (selected-to-active: base colour, ORM and tangent-space normal map).
+high-poly (selected-to-active: base colour, ORM and tangent-space normal map). The bake samples the
+high-poly's procedural surface materials (texture_bake.RECIPES) directly, so the game atlas is
+resampled once and anti-aliased by the bake samples.
 """
 import argparse
 import math
@@ -125,26 +127,6 @@ def _prefill(img, rgba):
     img.pixels.foreach_set(np.tile(np.array(rgba, dtype=np.float32), w * h))
 
 
-def _emit_route(mat, source):
-    """Make an atlas material emit one of its textures (for EMIT bakes); source=None restores it."""
-    nt = mat.node_tree
-    out = next(n for n in nt.nodes if n.bl_idname == 'ShaderNodeOutputMaterial')
-    bsdf = next(n for n in nt.nodes if n.bl_idname == 'ShaderNodeBsdfPrincipled')
-    emi = nt.nodes.get('__bake_emit') or nt.nodes.new('ShaderNodeEmission')
-    emi.name = '__bake_emit'
-    for l in list(out.inputs['Surface'].links):
-        nt.links.remove(l)
-    if source is None:
-        nt.links.new(bsdf.outputs[0], out.inputs['Surface'])
-        return
-    tex = next(n for n in nt.nodes if n.bl_idname == 'ShaderNodeTexImage' and n.image is not None
-               and n.image.name.endswith('_' + source))
-    for l in list(emi.inputs['Color'].links):
-        nt.links.remove(l)
-    nt.links.new(tex.outputs['Color'], emi.inputs['Color'])
-    nt.links.new(emi.outputs[0], out.inputs['Surface'])
-
-
 def bake_group(group, lod_objs, hp_objs, size, samples):
     t0 = time.time()
     print(f'== bake {group}: {len(lod_objs)} low-poly <- {len(hp_objs)} high-poly, {size}px')
@@ -156,13 +138,11 @@ def bake_group(group, lod_objs, hp_objs, size, samples):
     T.UV_WEIGHT.update(saved)
 
     target = _join_copies(lod_objs, '_bake_target')
-    imgs = {
-        'basecolor': T.new_image(f'{group}_basecolor', size, False),
-        'orm': T.new_image(f'{group}_orm', size, True),
-        'normal': T.new_image(f'{group}_normal', size, True),
-    }
-    _prefill(imgs['basecolor'], (0.02, 0.02, 0.021, 1.0))
-    _prefill(imgs['orm'], (1.0, 0.6, 0.2, 1.0))
+    imgs = {k: T.new_image(f'{group}_{k}', size, k != 'basecolor') for k in ('basecolor', 'rough', 'metal', 'ao', 'normal')}
+    _prefill(imgs['basecolor'], (0.03, 0.03, 0.031, 1.0))
+    _prefill(imgs['rough'], (0.6, 0.6, 0.6, 1.0))
+    _prefill(imgs['metal'], (0.2, 0.2, 0.2, 1.0))
+    _prefill(imgs['ao'], (1.0, 1.0, 1.0, 1.0))
     _prefill(imgs['normal'], (0.5, 0.5, 1.0, 1.0))
 
     bake_mat = bpy.data.materials.new('_bake_target_mat')
@@ -172,11 +152,37 @@ def bake_group(group, lod_objs, hp_objs, size, samples):
     target.data.materials.clear()
     target.data.materials.append(bake_mat)
 
-    hp_mats = {s.material for o in hp_objs for s in o.material_slots if s.material}
+    # the high-poly gets its procedural surface materials back (one per recipe)
+    details = {}
+    for o in hp_objs:
+        names = list(o.get('src_materials', [])) or [s.material.name for s in o.material_slots if s.material]
+        o.data.materials.clear()
+        for name in names:
+            if name in T.SPECIAL:
+                o.data.materials.append(bpy.data.materials[name])
+                continue
+            key = T.recipe_key(o.name, name)
+            if key not in details:
+                details[key] = T.build_detail(key, T.RECIPES[key])
+            o.data.materials.append(details[key][0])
+
+    def route(key):
+        for m, so in details.values():
+            nt = m.node_tree
+            for l in list(so['out'].inputs['Surface'].links):
+                nt.links.remove(l)
+            if key == 'normal':
+                nt.links.new(so['bsdf'].outputs[0], so['out'].inputs['Surface'])
+                continue
+            src = {'basecolor': so['color'], 'rough': so['rough'], 'metal': so['metal'], 'ao': so['ao']}[key]
+            for l in list(so['emi'].inputs['Color'].links):
+                nt.links.remove(l)
+            nt.links.new(src, so['emi'].inputs['Color'])
+            nt.links.new(so['emi'].outputs[0], so['out'].inputs['Surface'])
+
     sc = bpy.context.scene
     sc.render.engine = 'CYCLES'
     sc.cycles.device = 'CPU'
-    sc.cycles.samples = samples
     bk = sc.render.bake
     bk.use_selected_to_active = True
     bk.use_cage = False
@@ -193,20 +199,25 @@ def bake_group(group, lod_objs, hp_objs, size, samples):
     target.select_set(True)
     bpy.context.view_layer.objects.active = target
 
-    for key in ('basecolor', 'orm', 'normal'):
+    spp = {'basecolor': samples, 'rough': max(4, samples * 3 // 4), 'metal': max(4, samples // 2),
+           'ao': max(4, samples * 3 // 4), 'normal': max(4, samples // 2)}
+    for key in ('basecolor', 'rough', 'metal', 'ao', 'normal'):
         img_node.image = imgs[key]
+        route(key)
+        sc.cycles.samples = spp[key]
         t = time.time()
-        if key == 'normal':
-            for m in hp_mats:
-                _emit_route(m, None)
-            bpy.ops.object.bake(type='NORMAL', normal_space='TANGENT')
-        else:
-            for m in hp_mats:
-                _emit_route(m, key)
-            bpy.ops.object.bake(type='EMIT')
-        print(f'   {key}: {time.time() - t:.1f}s')
-    for m in hp_mats:
-        _emit_route(m, None)
+        bpy.ops.object.bake(type='NORMAL' if key == 'normal' else 'EMIT',
+                            **({'normal_space': 'TANGENT'} if key == 'normal' else {}))
+        print(f'   {key}: {time.time() - t:.1f}s ({spp[key]} spp)')
+
+    w = size
+    px = lambda k: np.array(imgs[k].pixels[:], dtype=np.float32).reshape(w, w, 4)[..., 0]
+    ao, rough, metal = px('ao'), px('rough'), px('metal')
+    orm = np.stack([ao, np.clip(rough, 0.04, 1.0), metal, np.ones_like(ao)], axis=-1)
+    imgs['orm'] = T.new_image(f'{group}_orm', size, True)
+    imgs['orm'].pixels[:] = orm.ravel()
+    for k in ('rough', 'metal', 'ao'):
+        bpy.data.images.remove(imgs.pop(k))
 
     os.makedirs(TEX_DIR, exist_ok=True)
     for key, img in imgs.items():
@@ -275,7 +286,7 @@ def main(argv):
     ap = argparse.ArgumentParser()
     ap.add_argument('--size', type=int, default=2048)
     ap.add_argument('--att-size', type=int, default=1024)
-    ap.add_argument('--samples', type=int, default=4)
+    ap.add_argument('--samples', type=int, default=16)
     ap.add_argument('--skip-bake', action='store_true')
     args = ap.parse_args(argv)
 
