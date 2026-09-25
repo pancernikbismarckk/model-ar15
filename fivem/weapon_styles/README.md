@@ -47,11 +47,12 @@ domyślny wybór karabinu, więc bez otwierania menu AR-15 zachowuje się tak ja
   a gra sama wysyła go innym graczom (węzeł synchronizacji ruchu postaci). Styl osłony z pistoletem
   idzie przez `SET_PED_MOTION_IN_COVER_CLIPSET_OVERRIDE` i nie jest synchronizowany przez grę, więc
   każdy klient zakłada go graczom w pobliżu. Style skradania są nakładką (niżej).
-- **Sprint z karabinem** gra bierze nie z zestawu ruchu, tylko z własnych zestawów broni (w singlu
-  KTWR podmienia słownik, do którego prowadzą oba), więc sprint stylu — także warianty „sprint: High
-  Port / na pasie”, które różnią się od stylu bazowego wyłącznie sprintem — skrypt gra nakładką na
-  czas sprintu (`Config.RifleSprintOverlay`). Zwykły bieg (bez Shift) jest w wariantach taki sam jak
-  w stylu bazowym.
+- **Sprint z karabinem**: gra nie bierze klipu sprintu ze stylu, tylko zostawia w sprincie trzymanie
+  stylu oburącz. Warianty „sprint: High Port / na pasie” różnią się od stylu bazowego wyłącznie tym
+  klipem (rusza tylko prawą ręką, lewa ma pracować jak w zwykłym sprincie), więc na czas sprintu
+  styl schodzi z postaci (pod spodem jest sprint z gry) i skrypt gra sprint stylu nakładką; po
+  sprincie styl wraca (`Config.RifleSprintOverlay`). Zwykły bieg (bez Shift) jest w wariantach taki
+  sam jak w stylu bazowym.
 - **Nakładka** — animacje stylu na górnej części ciała (`TaskPlayAnim`: stanie, chód, bieg,
   sprint), synchronizowane przez grę. Tak działają style skradania, a w **trybie skryptowym**
   wszystkie style. Celowanie, strzał, przeładowanie, pojazd, osłona, pierwsza osoba i animacje
@@ -93,7 +94,7 @@ Export: `exports.weapon_styles:GetStyles()`.
 | `Command` | `'style'` | komenda menu |
 | `Mode` | `'auto'` | `'auto'`, `'native'`, `'overlay'` |
 | `Defaults` | karabin `'ar15'`, reszta `'default'` | wybór gracza przed pierwszym otwarciem menu |
-| `RifleSprintOverlay` | `true` | tryb natywny: sprint stylu karabinu grany nakładką (`false` = sprint z gry) |
+| `RifleSprintOverlay` | `true` | tryb natywny: w sprincie z karabinem styl schodzi, a jego sprint gra nakładka (`false` = bez tego) |
 | `SyncDistance` | `150.0` | zasięg, w którym klient ładuje style innych graczy (tryb natywny) |
 | `ExcludedWeapons` | `{}` | bronie, które zostają przy swoich animacjach, np. `{ 'WEAPON_GLOCK17' }` |
 | `HiddenStyles` | `{}` | style ukryte w menu, np. `{ 'r17', 'p12' }` |
