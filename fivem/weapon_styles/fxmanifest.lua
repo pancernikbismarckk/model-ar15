@@ -4,7 +4,7 @@ lua54 'yes'
 
 name 'weapon_styles'
 description 'Weapon holding styles per player (/style): KTWR animations by Mr.KobraX, OneSync'
-version '1.2.0'
+version '1.3.0'
 
 ui_page 'html/index.html'
 

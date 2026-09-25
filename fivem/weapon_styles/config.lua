@@ -9,6 +9,11 @@ Config.Command = 'style'
 -- (the stealth styles are always played by the script)
 Config.Mode = 'auto'
 
+-- native mode: the rifle sprint comes from the weapon's own clip sets, not from the style, so the
+-- style's sprint (the "sprint: High Port / na pasie" variants) is played by the script on the upper
+-- body while sprinting; false = the game's sprint
+Config.RifleSprintOverlay = true
+
 -- a player's choice before they open the menu for the first time
 -- (rifle 'ar15' = the AR-15's own low ready from weapon_ar15; other rifles keep the GTA look)
 Config.Defaults = {

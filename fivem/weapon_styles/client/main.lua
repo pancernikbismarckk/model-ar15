@@ -188,15 +188,21 @@ end
 local function overlayTarget(ped)
     local kind = weaponKind(GetSelectedPedWeapon(ped))
     if not kind then return nil end
+    local move = IsPedSprinting(ped) and 'sprint' or IsPedRunning(ped) and 'run'
+        or IsPedWalking(ped) and 'walk' or 'idle'
     local st
     if GetPedStealthMovement(ped) then
         st = style(kind .. '_stealth', prefs[kind .. '_stealth'])
-    elseif kind ~= 'unarmed' and not nativeMode then
+    elseif kind ~= 'unarmed' then
         st = style(kind, prefs[kind])
+        -- native mode: the game plays the style, except the rifle sprint, which it takes from the
+        -- weapon's own clip sets (in single player KTWR replaces the dictionary both lead to), so the
+        -- style's sprint (the "sprint: High Port / na pasie" variants) is played here
+        if nativeMode and not (kind == 'rifle' and move == 'sprint' and Config.RifleSprintOverlay ~= false) then
+            st = nil
+        end
     end
     if not st or not st.clips then return nil end
-    local move = IsPedSprinting(ped) and 'sprint' or IsPedRunning(ped) and 'run'
-        or IsPedWalking(ped) and 'walk' or 'idle'
     return st.dict, st.clips[move]
 end
 
