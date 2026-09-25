@@ -26,7 +26,9 @@ ani oznaczeń bezpiecznika. Wszystkie nazwy obiektów są generyczne (`weapon_ar
 | `fivem/weapon_ar15/` | **gotowy zasób FiveM**: modele `.ydr`/`.ytd`, animacje `anim@weapon_ar15.ycd`, pliki meta, skrypty, `config.lua` |
 | `fivem/ox_inventory/` | `weapons_ar15.lua` (wpisy do `ox_inventory/data/weapons.lua`) + ikony przedmiotów |
 | `fivem/weapon_ar15_sollumz.blend` | scena Sollumz (do edycji i ponownego eksportu), tekstury z `textures/fivem/` |
-| `tools/cwconv/` | konwerter CodeWalker XML ↔ `.ydr`/`.ytd` (na CodeWalker.Core) |
+| `fivem/weapon_styles/` | zasób FiveM `/style`: style trzymania broni KTWR (Mr.KobraX) wybierane przez gracza, OneSync — [README](fivem/weapon_styles/README.md) |
+| `tools/weapon_styles/` | generator `weapon_styles` z paczek KTWR |
+| `tools/cwconv/` | konwerter CodeWalker XML ↔ `.ydr`/`.ytd`/`.ycd`, rozpakowywanie RPF, `.ymt` → XML (na CodeWalker.Core) |
 | `blender/*.py` | generator — model jest w całości budowany skryptem, więc każdą poprawkę można odtworzyć |
 
 ## Wymiary (skala 1:1, 1 jednostka Blendera = 1 m)
@@ -205,6 +207,8 @@ celownika zawiera przyrządy złożone. Po zdjęciu celownika `client.lua` przyw
 - Własne animacje nie grają w pierwszej osobie, w pojeździe, w osłonie, przy ragdollu, pływaniu,
   wspinaniu i podczas animacji z innych skryptów (emotki, animacje ekwipunku) — wtedy są animacje z gry.
 - Ustawienia w `config.lua` (low ready, przeładowanie, wypadanie magazynków, części broni, zasięg).
+- Z zasobem `weapon_styles` low ready jest jednym ze stylów karabinu w `/style` („AR-15 low ready”,
+  domyślny); po wyborze stylu KTWR AR-15 trzyma się jak w tym stylu, a przeładowanie zostaje własne.
 
 Latarka włącza się jak w każdej broni z latarką w GTA. Laser: klawisz **J** (FiveM → Ustawienia →
 Klawisze → FiveM, „AR-15: laser wł./wył.”); promień widzą też inni gracze w promieniu 80 m.
@@ -230,6 +234,13 @@ Klawisze → FiveM, „AR-15: laser wł./wył.”); promień widzą też inni gr
   za dłonią w klipie `w_reload`, a na ziemię spada jego kopia) i czy klipy części broni (`w_*`)
   grają na obiekcie broni trzymanej przez postać (jeśli nie, części po prostu stoją). Kąty
   mocowania magazynka w dłoni skrypt kalibruje sam przy starcie.
+
+## Style trzymania broni (`/style`)
+
+`fivem/weapon_styles` to osobny zasób FiveM: 42 style KTWR (Mr.KobraX) dla karabinów, pistoletów,
+skradania i osłony, wybierane przez każdego gracza w menu `/style` i widoczne dla innych graczy
+(OneSync, state bag). Działa z AR-15 i Glockiem 17 (`WEAPON_GLOCK17`). Szczegóły, instalacja i
+budowanie z paczek autora: [fivem/weapon_styles/README.md](fivem/weapon_styles/README.md).
 
 ## Animacje postaci
 

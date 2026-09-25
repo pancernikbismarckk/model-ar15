@@ -7,16 +7,20 @@ using CodeWalker.GameFiles;
 // cwconv xml2bin <in.{ydr,ytd,ycd,ytyp}.xml> <out_dir> -> writes <name>.ydr / .ytd / .ycd / .ytyp
 // cwconv check <file.{ydr,ytd,ycd,ytyp}>               -> loads the binary and prints a summary
 // cwconv bin2xml <file.{ydr,ytd,ycd}> <out_dir>        -> CodeWalker XML (+ DDS textures in <out_dir>/<name>/)
+// cwconv rpfx <file.rpf> <out_dir>                     -> unpacks an (unencrypted / OpenIV) RPF, nested RPFs too
+// cwconv ymt2xml <file.ymt> <out.xml>                  -> PSO / RSC meta / RBF .ymt as XML
 static class Program
 {
     static int Main(string[] args)
     {
-        if (args.Length < 2) { Console.Error.WriteLine("usage: cwconv xml2bin <in.xml> <out_dir> | check <file>"); return 2; }
+        if (args.Length < 2) { Console.Error.WriteLine("usage: cwconv xml2bin <in.xml> <out_dir> | check <file> | bin2xml <file> <out_dir> | rpfx <rpf> <out_dir> | ymt2xml <ymt> <out.xml>"); return 2; }
         try
         {
             if (args[0] == "xml2bin") return Xml2Bin(args[1], args[2]);
             if (args[0] == "check") return Check(args[1]);
             if (args[0] == "bin2xml") return Bin2Xml(args[1], args[2]);
+            if (args[0] == "rpfx") return RpfExtract(args[1], args[2]);
+            if (args[0] == "ymt2xml") return Ymt2Xml(args[1], args[2]);
         }
         catch (Exception e) { Console.Error.WriteLine("error: " + e); return 1; }
         return 2;
@@ -58,6 +62,62 @@ static class Program
         string outPath = Path.Combine(outDir, outName);
         File.WriteAllBytes(outPath, data);
         Console.WriteLine($"{outPath}: {data.Length} bytes");
+        return 0;
+    }
+
+    // cwconv rpfx <file.rpf> <out_dir>  -> every file of an (unencrypted / OpenIV) RPF, nested RPFs unpacked too;
+    //                                      resources are written as standalone RSC7 files
+    static int RpfExtract(string path, string outDir)
+    {
+        var rpf = new RpfFile(Path.GetFullPath(path), Path.GetFileName(path));
+        rpf.ScanStructure(null, e => Console.Error.WriteLine("scan: " + e));
+        Console.WriteLine($"{Path.GetFileName(path)}: encryption {rpf.Encryption}, {rpf.AllEntries?.Count ?? 0} entries");
+        ExtractAll(rpf, outDir, "");
+        return 0;
+    }
+
+    static void ExtractAll(RpfFile rpf, string outDir, string prefix)
+    {
+        if (rpf.AllEntries == null) return;
+        foreach (var e in rpf.AllEntries)
+        {
+            if (!(e is RpfFileEntry fe)) continue;
+            string rel = e.Path.Substring(rpf.Path.Length).TrimStart('\\', '/').Replace('\\', '/');
+            string outPath = Path.Combine(outDir, prefix, rel);
+            if (fe.Name.EndsWith(".rpf", StringComparison.OrdinalIgnoreCase)) continue;   // children below
+            Directory.CreateDirectory(Path.GetDirectoryName(outPath));
+            byte[] data = rpf.ExtractFile(fe);
+            if (data == null) { Console.Error.WriteLine("failed: " + e.Path + " " + rpf.LastError); continue; }
+            if (fe is RpfResourceFileEntry re)
+                data = ResourceBuilder.AddResourceHeader(re, data);
+            File.WriteAllBytes(outPath, data);
+            Console.WriteLine($"  {Path.Combine(prefix, rel)} {data.Length}");
+        }
+        if (rpf.Children != null)
+            foreach (var c in rpf.Children)
+                ExtractAll(c, outDir, Path.Combine(prefix, c.Path.Substring(rpf.Path.Length).TrimStart('\\', '/').Replace('\\', '/')));
+    }
+
+    static int Ymt2Xml(string path, string outPath)
+    {
+        byte[] data = File.ReadAllBytes(path);
+        string xml, kind;
+        if (PsoFile.IsPSO(new MemoryStream(data)))
+        {
+            var pso = new PsoFile();
+            pso.Load(data);
+            xml = PsoXml.GetXml(pso);
+            kind = "PSO";
+        }
+        else
+        {
+            var ymt = new YmtFile();
+            ymt.Load(data);
+            xml = ymt.Meta != null ? MetaXml.GetXml(ymt.Meta) : ymt.Rbf != null ? RbfXml.GetXml(ymt.Rbf) : throw new Exception("unknown ymt format");
+            kind = ymt.Meta != null ? "RSC meta" : "RBF";
+        }
+        File.WriteAllText(outPath, xml);
+        Console.WriteLine($"{outPath}: {kind}");
         return 0;
     }
 

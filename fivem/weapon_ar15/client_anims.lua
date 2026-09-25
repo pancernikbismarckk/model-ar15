@@ -22,7 +22,7 @@ local HOLD_FLAGS = 1 + 16 + 32          -- loop, upper body only, player keeps c
 local RELOAD_FLAGS = 16 + 32
 local RELOADS = { A.reload, A.reload_empty }
 local ROT_ORDER = 2                     -- Euler order passed to AttachEntityToEntity (ROT_ZXY)
-local IsPedSwitchingWeapon = IsPedSwitchingWeapon or function() return false end   -- undocumented native
+local IsPedSwappingWeapon = IsPedSwappingWeapon or function() return false end   -- _IS_PED_SWAPPING_WEAPON
 
 local function loaded()
     if HasAnimDictLoaded(DICT) then return true end
@@ -421,6 +421,14 @@ RegisterCommand('ar15lowready', function()
     end
 end, false)
 
+-- with weapon_styles running, the low ready is one of its rifle styles ('ar15', /style)
+local function lowReadyOn()
+    if not (Config.LowReady and lowReady) then return false end
+    if GetResourceState('weapon_styles') ~= 'started' then return true end
+    local styles = LocalPlayer.state.wstyles
+    return type(styles) ~= 'table' or styles.rifle == nil or styles.rifle == 'ar15'
+end
+
 local function aiming(ped)
     return IsPlayerFreeAiming(PlayerId()) or IsControlPressed(0, 25) or IsDisabledControlPressed(0, 25)
         or IsControlPressed(0, 24) or IsDisabledControlPressed(0, 24) or IsPedShooting(ped)
@@ -435,7 +443,7 @@ local function overlayAllowed(ped)
         and not IsPedSwimming(ped) and not IsPedDeadOrDying(ped, true)
         and not IsPedInParachuteFreeFall(ped) and GetPedParachuteState(ped) <= 0
         and not IsPedUsingAnyScenario(ped)
-        and not IsPedSwitchingWeapon(ped) and not IsPedInMeleeCombat(ped)
+        and not IsPedSwappingWeapon(ped) and not IsPedInMeleeCombat(ped)
         and not IsPedPerformingMeleeAction(ped) and not IsPedGoingIntoCover(ped)
 end
 
@@ -485,7 +493,7 @@ local function tickReload(ped)
     elseif aiming(ped) then
         StopAnimTask(ped, DICT, data.clip, 8.0)
         reload = nil
-    elseif f >= data.frames - 3 and Config.LowReady and lowReady and not IsPedSprinting(ped) then
+    elseif f >= data.frames - 3 and lowReadyOn() and not IsPedSprinting(ped) then
         -- the clip ends in the low ready: go straight on into the loop
         holdTried = 0
         startHold(ped, 4.0)
@@ -520,7 +528,7 @@ local function tick(ped)
     local playingHold = IsEntityPlayingAnim(ped, DICT, A.hold.clip, 3)
     local aim = aiming(ped)
     if aim then aimReleasedAt = GetGameTimer() end
-    local want = Config.LowReady and lowReady and allowed and not reloading and not aim
+    local want = lowReadyOn() and allowed and not reloading and not aim
         and (Config.LowReadyWhileSprinting or not IsPedSprinting(ped))
         and GetGameTimer() - equippedAt > 1500 and GetGameTimer() - aimReleasedAt > 150
     if want then

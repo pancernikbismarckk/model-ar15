@@ -6,3 +6,9 @@ renders/wip*
 build/
 obj/
 bin/
+# weapon_styles: KTWR animations (Mr.KobraX) and files generated from them — built by
+# tools/weapon_styles/build_weapon_styles.py from the author's packages, not redistributed here
+fivem/weapon_styles/stream/
+fivem/weapon_styles/meta/
+fivem/weapon_styles/shared/catalog.lua
+fivem/weapon_styles/html/img/

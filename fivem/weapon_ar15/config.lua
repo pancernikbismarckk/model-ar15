@@ -3,7 +3,7 @@ Config = {}
 -- Low ready (the rifle held across the chest, muzzle down to the left) whenever the AR-15 is out
 -- and not being aimed or fired. Each player can switch it off for themselves: /ar15lowready
 -- (a key can be bound in Settings > Key Bindings > FiveM).
-Config.LowReady = true
+Config.LowReady = true           -- with weapon_styles: only while its rifle style is "AR-15 low ready"
 Config.LowReadyWhileSprinting = false
 
 -- Custom reload (magazine pulled and dropped, a fresh one from the belt, bolt catch on an empty
