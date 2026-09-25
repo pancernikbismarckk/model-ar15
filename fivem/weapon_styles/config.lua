@@ -6,6 +6,7 @@ Config.Command = 'style'
 -- 'auto'    native styles (the game plays them itself, walking and turning included) when the game
 --           takes the add-on clip sets, otherwise the script plays them on the upper body
 -- 'native'  always native     'overlay'  always the script (upper body: idle, walk, run, sprint)
+-- (the stealth styles are always played by the script)
 Config.Mode = 'auto'
 
 -- a player's choice before they open the menu for the first time
@@ -19,8 +20,8 @@ Config.Defaults = {
     pistol_cover = 'default',
 }
 
--- other players' styles are applied within this distance (native mode; the script mode is synced
--- by the game itself)
+-- native mode: other players' style clip sets are streamed in (and their cover style set) within
+-- this distance; the rest is synced by the game itself
 Config.SyncDistance = 150.0
 
 -- weapons that keep their own animations, e.g. an add-on weapon with its own holding script:

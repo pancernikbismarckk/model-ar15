@@ -73,7 +73,7 @@ function renderCards() {
     variant.textContent = st.variant || '';
     const desc = document.createElement('div');
     desc.className = 'desc';
-    desc.textContent = st.disabled ? 'Zasób weapon_ar15 nie jest uruchomiony.' : (st.desc || '');
+    desc.textContent = st.disabled ? (st.why || '') : (st.desc || '');
     body.append(name, variant, desc);
     b.append(img, check, body);
 

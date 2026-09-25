@@ -39,43 +39,47 @@ domyślny wybór karabinu, więc bez otwierania menu AR-15 zachowuje się tak ja
 
 ## Jak to działa
 
-- **Tryb natywny** — gra sama odtwarza styl (stanie, chód, bieg, sprint, obroty, przejścia do
-  celowania), tak jak w KTWR. Każdy styl ma własny słownik animacji (`stream/ktwr_*.ycd`), zestaw
-  klipów (`meta/clip_sets.xml`) postawiony przed zestawem broni z gry, zestaw animacji broni
-  (`meta/weaponanimations.meta`, wpisy zmieniają tylko zestaw ruchu / osłony, reszta pól spada na
-  zestaw z gry) i — dla skradania — tryb ruchu (`meta/pedpersonality.meta`). Skrypt przełącza je
-  dla każdej postaci natywkami `SET_WEAPON_ANIMATION_OVERRIDE` i `SET_MOVEMENT_MODE_OVERRIDE`
-  zależnie od broni w ręku (osłona, skradanie, kobieca postać freemode ma warianty `_F`).
-- **Tryb skryptowy** — te same animacje grane na górnej części ciała (`TaskPlayAnim`: stanie,
-  chód, bieg, sprint), synchronizowane do innych graczy przez grę. Celowanie, strzał,
-  przeładowanie, pojazd, osłona, pierwsza osoba i animacje innych skryptów od razu go przerywają.
+- **Tryb natywny** — karabin i pistolet: gra sama odtwarza styl (stanie, chód, bieg, sprint,
+  obroty, przejścia do celowania), tak jak w KTWR. Każdy styl ma własny słownik animacji
+  (`stream/ktwr_*.ycd`) i zestawy klipów (`meta/clip_sets.xml`), w których ten słownik stoi przed
+  łańcuchem klipów, jaki KTWR BASE daje danej broni (np. `ktwr_r08@weapons@rifle@hi@assault_rifle`).
+  Skrypt zakłada go na postać natywką `SET_PED_WEAPON_MOVEMENT_CLIPSET` (zestaw ruchu z bronią),
+  a gra sama wysyła go innym graczom (węzeł synchronizacji ruchu postaci). Styl osłony z pistoletem
+  idzie przez `SET_PED_MOTION_IN_COVER_CLIPSET_OVERRIDE` i nie jest synchronizowany przez grę, więc
+  każdy klient zakłada go graczom w pobliżu. Style skradania są nakładką (niżej).
+- **Nakładka** — animacje stylu na górnej części ciała (`TaskPlayAnim`: stanie, chód, bieg,
+  sprint), synchronizowane przez grę. Tak działają style skradania, a w **trybie skryptowym**
+  wszystkie style. Celowanie, strzał, przeładowanie, pojazd, osłona, pierwsza osoba i animacje
+  innych skryptów od razu ją przerywają.
 - `Config.Mode = 'auto'` (domyślnie): przy starcie skrypt sprawdza, czy gra przyjęła dodane
-  zestawy klipów; jeśli tak — tryb natywny, jeśli nie — skryptowy. W konsoli F8 widać
-  `[weapon_styles] native mode ...` albo `overlay mode ...`, a w nagłówku menu „Tryb natywny” /
-  „Tryb skryptowy”. Można wymusić `'native'` albo `'overlay'`.
+  zestawy klipów; jeśli tak — tryb natywny, jeśli nie — skryptowy (bez stylów osłony). W konsoli F8
+  widać `[weapon_styles] native mode ...` albo `overlay mode ...`, a w nagłówku menu „Tryb
+  natywny” / „Tryb skryptowy”. Można wymusić `'native'` albo `'overlay'`.
 - Pierwsza osoba zawsze używa animacji z gry.
+- Skrypt cofa tylko to, co sam ustawił, więc zestawy klipów zakładane przez inne skrypty (noszenie
+  pudła, kanistra itp.) zostają.
+- Wersja 1.0 używała własnych zestawów animacji broni (`weaponanimations.meta`) i trybów ruchu
+  (`pedpersonality.meta`) — gra ich nie tworzy z plików zasobu (jej DLC tylko dopisują bronie do
+  istniejących zestawów), przez co broń wisiała w dłoni bez animacji. Od 1.1 ich nie ma.
 
 ## Broń add-on
 
-- **AR-15** (`WEAPON_AR15`, zasób `weapon_ar15`): ma wpisy we wszystkich zestawach karabinowych i
-  trybach ruchu (z własnych plików meta AR-15), więc style działają natywnie. Gdy wybrany jest styl
-  KTWR, low ready z `weapon_ar15` się wyłącza; przeładowanie z wypadającym magazynkiem działa z
-  każdym stylem.
-- **Glock 17** (`WEAPON_GLOCK17`): wpisy jak dla `WEAPON_PISTOL` we wszystkich zestawach
-  pistoletowych, osłonowych i trybach skradania — style działają natywnie, a przy stylu GTA broń
-  wraca do swoich własnych animacji. Jeśli Glock ma własny skrypt trzymania (low ready itp.) i ma
-  go zachować, dopisz go do `Config.ExcludedWeapons`.
-- **Każda inna broń add-on** dostaje styl swojej grupy (pistolet / karabin) w trybie skryptowym.
-  Żeby działała natywnie, wygeneruj zasób z `--addon WEAPON_NAZWA=pistol:WEAPON_PISTOL` (albo
-  `=rifle:WEAPON_CARBINERIFLE`).
+- Każda broń z grup pistolet / karabin (także add-on) dostaje styl natywnie: bronie z gry i
+  **AR-15** (`WEAPON_AR15`, łańcuch jak Carbine Rifle) oraz **Glock 17** (`WEAPON_GLOCK17`,
+  łańcuch jak Pistol) mają własne wpisy, pozostałe dostają łańcuch Carbine Rifle / Pistol.
+- AR-15: gdy wybrany jest styl KTWR, low ready z `weapon_ar15` się wyłącza; przeładowanie z
+  wypadającym magazynkiem działa z każdym stylem.
+- Jeśli jakaś broń ma własny skrypt trzymania i ma go zachować, dopisz ją do
+  `Config.ExcludedWeapons`.
 
 ## Synchronizacja (OneSync)
 
 Wybór gracza (6 kategorii) idzie na serwer, który sprawdza nazwy stylów i wpisuje je do state baga
-gracza `wstyles` (replikowany do wszystkich). Każdy klient nakłada style natywne na postacie
-graczy w promieniu `Config.SyncDistance` (150 m); tryb skryptowy synchronizuje gra. Serwer
-przyjmuje najwyżej jedną zmianę na 150 ms na gracza, ale ostatni wybór nigdy nie przepada.
-Wybór zapisuje się w KVP klienta i wraca po ponownym wejściu. Export: `exports.weapon_styles:GetStyles()`.
+gracza `wstyles` (replikowany do wszystkich). Styl karabinu / pistoletu i nakładkę synchronizuje
+gra; klienci z state baga ładują zestawy klipów graczy w promieniu `Config.SyncDistance` (150 m)
+i zakładają im styl osłony. Serwer przyjmuje najwyżej jedną zmianę na 150 ms na gracza, ale
+ostatni wybór nigdy nie przepada. Wybór zapisuje się w KVP klienta i wraca po ponownym wejściu.
+Export: `exports.weapon_styles:GetStyles()`.
 
 ## Ustawienia (`config.lua`)
 
@@ -84,7 +88,7 @@ Wybór zapisuje się w KVP klienta i wraca po ponownym wejściu. Export: `export
 | `Command` | `'style'` | komenda menu |
 | `Mode` | `'auto'` | `'auto'`, `'native'`, `'overlay'` |
 | `Defaults` | karabin `'ar15'`, reszta `'default'` | wybór gracza przed pierwszym otwarciem menu |
-| `SyncDistance` | `150.0` | zasięg nakładania stylów innym graczom (tryb natywny) |
+| `SyncDistance` | `150.0` | zasięg, w którym klient ładuje style innych graczy (tryb natywny) |
 | `ExcludedWeapons` | `{}` | bronie, które zostają przy swoich animacjach, np. `{ 'WEAPON_GLOCK17' }` |
 | `HiddenStyles` | `{}` | style ukryte w menu, np. `{ 'r17', 'p12' }` |
 
@@ -92,25 +96,28 @@ Wybór zapisuje się w KVP klienta i wraca po ponownym wejściu. Export: `export
 
 ```bash
 pip install pillow
-dotnet build tools/cwconv -c Release -o build/cwconv
-git clone https://github.com/Hxrv3y/fivem-addon-weapon-tool-kit build/fivem-addon-weapon-tool-kit
 python3 tools/weapon_styles/build_weapon_styles.py --packs <folder z paczkami KTWR .zip>
 ```
 
 Potrzebne paczki: `01. KTWR BASE (Required)`, `Rifle (Movement) Pack`, `Pistol (Movement) Pack`,
-`Pistol (Cover) Pack`. Generator zapisuje `stream/`, `meta/`, `shared/catalog.lua` i `html/img/`
-(słowniki KTWR są kopiowane bez zmian, pod nowymi nazwami), a wynik jest powtarzalny.
+`Pistol (Cover) Pack`. Generator zapisuje `stream/`, `meta/clip_sets.xml`, `shared/catalog.lua` i
+`html/img/` (słowniki KTWR są kopiowane bez zmian, pod nowymi nazwami), a wynik jest powtarzalny.
+Kolejna broń add-on z własnym łańcuchem: `--addon WEAPON_NAZWA=rifle:WEAPON_CARBINERIFLE`.
 
 ## Co jest sprawdzone, a co wymaga testu w grze
 
+- Z nagrania z gry (wersja 1.0): menu, zapis wyboru i wykrycie trybu działały, a style KTWR nie —
+  broń wisiała w dłoni, bo gra nie utworzyła własnych zestawów animacji broni. Poprawione w 1.1.
 - Sprawdzone tutaj: skrypty klienta i serwera przeszły symulowane scenariusze na zastępczych
-  natywkach (tryb natywny i skryptowy, style innego gracza ze state baga, osłona, skradanie,
-  pierwsza osoba, kobieca postać, Glock 17, inna broń add-on, reset po zatrzymaniu zasobu, limit
-  zmian na serwerze); każda użyta natywka GTA istnieje w dokumentacji natywek (reszta to
-  standardowe funkcje FiveM); menu wyrenderowane w Chromium; pliki meta powstają z wpisów z plików gry (KTWR BASE zawiera pełne pliki gry).
-- Do sprawdzenia w grze (nie da się tu uruchomić GTA): czy build serwera przyjmuje dodane zestawy
-  klipów (`CLIP_SETS_FILE`) — jeśli nie, zasób sam przechodzi w tryb skryptowy, więc style dalej
-  działają, tylko na górnej części ciała.
+  natywkach (zestaw klipów tylko po załadowaniu i tylko zdefiniowany w `clip_sets.xml`, ponowne
+  założenie po zmianie broni, pojeździe i śmierci, osłona, skradanie, pierwsza osoba, kobieca
+  postać, Glock 17, inna broń add-on, inni gracze, reset po zatrzymaniu zasobu, limit zmian na
+  serwerze); każda użyta natywka GTA istnieje w dokumentacji natywek (reszta to standardowe funkcje
+  FiveM); to, że gra synchronizuje zestaw ruchu z bronią, wynika z kodu OneSync FiveM
+  (`CPedMovementGroupDataNode`); menu wyrenderowane w Chromium.
+- Do sprawdzenia w grze (nie da się tu uruchomić GTA): wygląd stylów na postaci i u innych graczy
+  oraz styl osłony. Gdyby tryb natywny dalej wyglądał źle, `Config.Mode = 'overlay'` gra style
+  samym skryptem.
 
 ## Autor animacji
 

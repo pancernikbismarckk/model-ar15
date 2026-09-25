@@ -1,10 +1,12 @@
--- weapon_styles (client): the /style menu and the chosen styles on your ped and on other players.
+-- weapon_styles (client): the /style menu and the chosen styles on your ped.
 --
--- native mode   the game plays the style itself: a weapon animation set (rifle / pistol / pistol in
---               cover) and a movement mode (stealth) per ped, switched with the weapon in hand
--- overlay mode  the style's idle / walk / run / sprint clips on the upper body (TaskPlayAnim, which
---               OneSync syncs); used when the game does not take the add-on clip sets and for
---               add-on weapons that have no entries in the sets
+-- native   the style's clip set in place of the weapon's own movement clip set
+--          (SET_PED_WEAPON_MOVEMENT_CLIPSET: standing, walking, running, sprinting, turns, idle <->
+--          aim; the game syncs it to the other players) and, with a pistol, in place of its cover
+--          clip set (SET_PED_MOTION_IN_COVER_CLIPSET_OVERRIDE, set here on the other players too)
+-- overlay  the style's idle / walk / run / sprint clips on the upper body (TaskPlayAnim, synced by
+--          the game): the stealth styles, and every style when the game does not take the add-on
+--          clip sets (overlay mode)
 -- Choices are kept per player (resource KVP) and shared through the player state bag 'wstyles'.
 
 local CATS, ORDER = {}, {}
@@ -22,15 +24,7 @@ local excluded, hidden = {}, {}
 for _, w in ipairs(Config.ExcludedWeapons or {}) do excluded[GetHashKey(w)] = true end
 for _, id in ipairs(Config.HiddenStyles or {}) do hidden[id] = true end
 
--- the game's own weapon animation set and movement mode per player model (pedpersonality), which a
--- reset goes back to; the female freemode ped gets the styles' _F variants
-local BASE = {
-    [`mp_f_freemode_01`] = { set = `MP_F_Freemode`, mode = 'DEFAULT_ACTION', female = true },
-    [`player_zero`] = { set = `Michael`, mode = 'MICHAEL_ACTION' },
-    [`player_one`] = { set = `Franklin`, mode = 'FRANKLIN_ACTION' },
-    [`player_two`] = { set = `Trevor`, mode = 'TREVOR_ACTION' },
-}
-local BASE_DEFAULT = { set = `Default`, mode = 'DEFAULT_ACTION' }
+local FEMALE = `mp_f_freemode_01`
 local OVERLAY_FLAGS = 1 + 16 + 32           -- loop, upper body only, player keeps control
 local GROUPS = {
     [`GROUP_PISTOL`] = 'pistol', [`GROUP_STUNGUN`] = 'pistol',
@@ -73,71 +67,84 @@ end
 -- ------------------------------------------------------------------------------------------------
 -- weapons
 -- ------------------------------------------------------------------------------------------------
+-- { category, movement clip set chain (male, female freemode), cover chain } or nil (no styles)
+local function weaponInfo(weapon)
+    if weapon == `WEAPON_UNARMED` or excluded[weapon] then return nil end
+    local w = Catalog.weapons[weapon]
+    if w then return w end
+    local kind = GROUPS[GetWeapontypeGroup(weapon)]
+    return kind and Catalog.fallback[kind] or nil
+end
+
 local function weaponKind(weapon)
     if weapon == `WEAPON_UNARMED` then return 'unarmed' end
-    if excluded[weapon] then return nil end
-    if Catalog.native.rifle[weapon] then return 'rifle' end
-    if Catalog.native.pistol[weapon] then return 'pistol' end
-    return GROUPS[GetWeapontypeGroup(weapon)]
+    local w = weaponInfo(weapon)
+    return w and w[1] or nil
 end
 
 -- ------------------------------------------------------------------------------------------------
 -- native mode
 -- ------------------------------------------------------------------------------------------------
-local applied = {}      -- ped -> { set = name | false, mode = name | false }
-
-local function base(ped)
-    return BASE[GetEntityModel(ped)] or BASE_DEFAULT
+local function clipSetReady(name)
+    if HasClipSetLoaded(name) then return true end
+    RequestClipSet(name)
+    return false
 end
 
--- the weapon animation set and movement mode a ped should have (false = the game's own)
+-- the movement and cover clip sets a ped should have (false = the game's own)
 local function nativeTargets(ped, p, isMe)
-    local weapon = GetSelectedPedWeapon(ped)
-    local kind = weaponKind(weapon)
+    local w = weaponInfo(GetSelectedPedWeapon(ped))
     -- your own first person view keeps the game's first person animations
-    if not kind or (isMe and GetFollowPedCamViewMode() == 4) then return false, false end
-    local female = base(ped).female
-    if kind == 'unarmed' then
-        local ss = style('unarmed_stealth', p.unarmed_stealth)
-        return false, ss and ss.mode and (female and ss.modeF or ss.mode) or false
+    if not w or (isMe and GetFollowPedCamViewMode() == 4) then return false, false end
+    local st = style(w[1], p[w[1]])
+    local motion = st and (st.dict .. '@' .. (GetEntityModel(ped) == FEMALE and w[3] or w[2])) or false
+    local cover = false
+    if w[1] == 'pistol' then
+        local cs = style('pistol_cover', p.pistol_cover)
+        cover = cs and (cs.dict .. '@' .. w[4]) or false
     end
-    if not Catalog.native[kind][weapon] then return false, false end     -- no entries: overlay
-    local st
-    if kind == 'pistol' and (IsPedInCover(ped, false) or IsPedGoingIntoCover(ped)) then
-        st = style('pistol_cover', p.pistol_cover)
-    end
-    st = st or style(kind, p[kind])
-    local ss = style(kind .. '_stealth', p[kind .. '_stealth'])
-    return st and st.set and (female and st.setF or st.set) or false,
-        ss and ss.mode and (female and ss.modeF or ss.mode) or false
+    return motion, cover
 end
 
-local function applyNative(ped, p, isMe)
-    local set, mode = nativeTargets(ped, p, isMe)
-    local a = applied[ped]
-    if not a then
-        a = { set = false, mode = false }
-        applied[ped] = a
+-- st: what this script set on the ped ({ motion, cover }); only what we set is ever reset, so the
+-- clip sets other scripts put on the ped (carrying a box, a jerry can...) stay theirs
+local function syncMotion(ped, st, motion, force)
+    if motion == st.motion and not (force and motion) then return true end
+    if motion then
+        if not clipSetReady(motion) then return false end
+        SetPedWeaponMovementClipset(ped, motion)
+    else
+        ResetPedWeaponMovementClipset(ped)
     end
-    local b = base(ped)
-    if set ~= a.set then
-        SetWeaponAnimationOverride(ped, set and GetHashKey(set) or b.set)
-        a.set = set
-    end
-    if mode ~= a.mode then
-        SetMovementModeOverride(ped, mode or b.mode)
-        a.mode = mode
-    end
+    st.motion = motion
+    return true
 end
 
-local function resetNative(ped)
-    local a = applied[ped]
-    if a and DoesEntityExist(ped) then
-        local b = base(ped)
-        if a.set then SetWeaponAnimationOverride(ped, b.set) end
-        if a.mode then SetMovementModeOverride(ped, b.mode) end
+local function syncCover(ped, st, cover)
+    if cover == st.cover then return end
+    if cover then
+        if not clipSetReady(cover) then return end
+        SetPedCoverClipsetOverride(ped, cover)
+    else
+        ClearPedCoverClipsetOverride(ped)
     end
-    applied[ped] = nil
+    st.cover = cover
+end
+
+local mine = { ped = 0, weapon = 0, motion = false, cover = false, force = false, settled = true }
+
+local function applyMine(ped)
+    if ped ~= mine.ped then mine = { ped = ped, weapon = 0, motion = false, cover = false, force = false, settled = true } end
+    local motion, cover = false, false
+    if nativeMode then motion, cover = nativeTargets(ped, prefs, true) end
+    -- set it again after a weapon change, a weapon swap, death, a vehicle or a ragdoll
+    local weapon = GetSelectedPedWeapon(ped)
+    local settled = not IsPedSwappingWeapon(ped) and not IsEntityDead(ped) and not IsPedInAnyVehicle(ped, false)
+        and not IsPedRagdoll(ped)
+    if weapon ~= mine.weapon or (settled and not mine.settled) then mine.force = true end
+    mine.weapon, mine.settled = weapon, settled
+    if syncMotion(ped, mine, motion, mine.force) then mine.force = false end
+    syncCover(ped, mine, cover)
 end
 
 -- the game takes the add-on clip sets only if CLIP_SETS_FILE works on this server / build
@@ -156,7 +163,7 @@ CreateThread(function()
 end)
 
 -- ------------------------------------------------------------------------------------------------
--- overlay mode (your own ped; TaskPlayAnim is synced to the other players by the game)
+-- overlay (your own ped; TaskPlayAnim is synced to the other players by the game)
 -- ------------------------------------------------------------------------------------------------
 local overlay = nil      -- { dict, clip } we are playing
 local lastPlay = 0
@@ -179,18 +186,15 @@ local function overlayAllowed(ped)
 end
 
 local function overlayTarget(ped)
-    local weapon = GetSelectedPedWeapon(ped)
-    local kind = weaponKind(weapon)
+    local kind = weaponKind(GetSelectedPedWeapon(ped))
     if not kind then return nil end
     local st
     if GetPedStealthMovement(ped) then
         st = style(kind .. '_stealth', prefs[kind .. '_stealth'])
-        if nativeMode and st and (kind == 'unarmed' or Catalog.native[kind][weapon]) then return nil end
-    elseif kind ~= 'unarmed' then
+    elseif kind ~= 'unarmed' and not nativeMode then
         st = style(kind, prefs[kind])
-        if nativeMode and st and Catalog.native[kind][weapon] then return nil end
     end
-    if not st or not st.dict or not st.clips then return nil end
+    if not st or not st.clips then return nil end
     local move = IsPedSprinting(ped) and 'sprint' or IsPedRunning(ped) and 'run'
         or IsPedWalking(ped) and 'walk' or 'idle'
     return st.dict, st.clips[move]
@@ -244,11 +248,13 @@ local function menuData()
         if key == 'rifle' then
             list[#list + 1] = { id = 'ar15', label = 'AR-15 low ready', variant = 'tylko AR-15',
                 desc = 'Low ready z zasobu weapon_ar15; pozostałe karabiny jak w GTA.', img = 'img/ar15.png',
-                disabled = GetResourceState('weapon_ar15') ~= 'started' }
+                disabled = GetResourceState('weapon_ar15') ~= 'started' or nil,
+                why = 'Zasób weapon_ar15 nie jest uruchomiony.' }
         end
         for _, st in ipairs(c.list) do
             if not hidden[st.id] then
-                list[#list + 1] = { id = st.id, label = st.label, variant = st.variant, desc = st.desc, img = st.img }
+                list[#list + 1] = { id = st.id, label = st.label, variant = st.variant, desc = st.desc, img = st.img,
+                    disabled = c.kind == 'cover' and not nativeMode or nil, why = 'Działa tylko w trybie natywnym.' }
             end
         end
         cats[#cats + 1] = { key = key, label = c.label, hint = c.hint, styles = list }
@@ -305,7 +311,7 @@ CreateThread(function()
         -- the ESC that closed the menu must not open the pause menu a moment later
         local guard = menuOpen or GetGameTimer() - menuClosedAt < 500
         local busy = guard or kind == 'rifle' or kind == 'pistol' or (kind == 'unarmed' and GetPedStealthMovement(ped))
-        if nativeMode then applyNative(ped, prefs, true) end
+        applyMine(ped)
         tickOverlay(ped)
         if menuOpen then
             -- the mouse is on the menu: no looking around, shooting or pause menu
@@ -322,7 +328,10 @@ CreateThread(function()
     end
 end)
 
--- other players' styles (native mode; the overlay is synced by the game)
+-- other players (native mode): the game syncs their movement clip set, so it only has to be
+-- streamed in here; their cover clip set is not synced and is set here
+local others = {}        -- ped -> { cover = clip set | false }
+
 CreateThread(function()
     while true do
         if nativeMode then
@@ -333,11 +342,20 @@ CreateThread(function()
                 if ped ~= me and ped ~= 0 and DoesEntityExist(ped)
                     and #(GetEntityCoords(ped) - pos) < Config.SyncDistance then
                     local p = Player(GetPlayerServerId(player)).state.wstyles
-                    if type(p) == 'table' then applyNative(ped, p, false) end
+                    if type(p) == 'table' then
+                        local motion, cover = nativeTargets(ped, p, false)
+                        if motion then clipSetReady(motion) end
+                        local st = others[ped]
+                        if not st then
+                            st = { cover = false }
+                            others[ped] = st
+                        end
+                        syncCover(ped, st, cover)
+                    end
                 end
             end
-            for ped in pairs(applied) do
-                if not DoesEntityExist(ped) then applied[ped] = nil end
+            for ped in pairs(others) do
+                if not DoesEntityExist(ped) then others[ped] = nil end
             end
         end
         Wait(200)
@@ -349,6 +367,13 @@ exports('GetStyles', function() return prefs end)
 AddEventHandler('onResourceStop', function(name)
     if name ~= GetCurrentResourceName() then return end
     closeMenu()
-    stopOverlay(PlayerPedId(), 8.0)
-    for ped in pairs(applied) do resetNative(ped) end
+    local ped = PlayerPedId()
+    stopOverlay(ped, 8.0)
+    if mine.ped == ped then
+        if mine.motion then ResetPedWeaponMovementClipset(ped) end
+        if mine.cover then ClearPedCoverClipsetOverride(ped) end
+    end
+    for p, st in pairs(others) do
+        if st.cover and DoesEntityExist(p) then ClearPedCoverClipsetOverride(p) end
+    end
 end)

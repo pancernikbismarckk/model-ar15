@@ -2,32 +2,34 @@
 """Build the weapon_styles FiveM resource from Mr.KobraX's KTWR weapon holding packs.
 
     python3 tools/weapon_styles/build_weapon_styles.py --packs <folder with the KTWR .zip files>
-        [--vanilla <fivem-addon-weapon-tool-kit/templates/weapons>] [--out fivem/weapon_styles]
-        [--addon WEAPON_NAME=rifle|pistol:WEAPON_TWIN ...]
+        [--out fivem/weapon_styles] [--addon WEAPON_NAME=rifle|pistol:WEAPON_TWIN ...]
 
 KTWR (GTA V single player, OpenIV) ships every holding style as a replacement of one of the game's
-animation dictionaries (weapons@rifle@, weapons@pistol@, move_stealth@p_m_zero@..., cover@move@
-ai@base@1h@), so one style per category is installed at a time. Here every style keeps its own
-dictionary (stream/ktwr_*.ycd) and a player picks one per category at run time (/style):
+animation dictionaries (weapons@rifle@, weapons@pistol@, move_stealth@p_m_zero@..., cover@move@ai@
+base@1h@), and its BASE routes the weapons' clip sets through them (weaponanimations.meta), so one
+style per category is installed at a time. Here every style keeps its own dictionary
+(stream/ktwr_*.ycd) and a player picks one per category at run time (/style):
 
-  native   a clip set per style put in front of the weapon's own clip set (meta/clip_sets.xml),
-           weapon animation sets that only swap the motion / cover clip set (sparse entries: every
-           other field falls back to the game's own set, meta/weaponanimations.meta) and movement
-           modes for the stealth styles (meta/pedpersonality.meta); client/main.lua switches them
-           per ped with SET_WEAPON_ANIMATION_OVERRIDE / SET_MOVEMENT_MODE_OVERRIDE
-  overlay  the same dictionaries played as upper-body loops (idle / walk / run / sprint), used when
-           the game does not take the add-on clip sets and for add-on weapons without set entries
+  native   a clip set per style and weapon clip set chain: the style's dictionary in front of the
+           chain KTWR BASE gives the weapon (meta/clip_sets.xml). client/main.lua puts it on the
+           player's ped with SET_PED_WEAPON_MOVEMENT_CLIPSET (the game syncs it to the other
+           players) and, for the cover styles, SET_PED_MOTION_IN_COVER_CLIPSET_OVERRIDE
+  overlay  the dictionaries played as upper-body loops (idle / walk / run / sprint): the stealth
+           styles, and every style when the game does not take the add-on clip sets
 
-Writes (third-party content, not committed): stream/*.ycd, meta/*, shared/catalog.lua, html/img/*.jpg
+Weapon animation sets and movement modes of our own are not used: the game's loaders only add
+weapons to the sets / modes it already has (as its DLCs do), so a new set leaves the ped without
+weapon animations.
+
+Writes (third-party content, not committed): stream/*.ycd, meta/clip_sets.xml, shared/catalog.lua,
+html/img/*.jpg
 """
 import argparse
-import copy
 import glob
 import io
 import os
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
@@ -38,7 +40,6 @@ from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 DEFAULT_OUT = os.path.join(ROOT, 'fivem', 'weapon_styles')
-AR15_META = os.path.join(ROOT, 'fivem', 'weapon_ar15', 'meta', 'weaponanimations.meta')
 
 # ---------------------------------------------------------------------------------------------
 # catalogue: (id, KTWR package, label, sprint / walk variant, Polish description, preview package)
@@ -140,6 +141,7 @@ PISTOL_COVER = [
      'W osłonie lufa w dół przy brzuchu.', 'Pistol - C (Position SUL)'),
 ]
 
+
 # category key, menu label, hint, styles, the dictionary each package replaces, kind
 CATEGORIES = [
     ('rifle', 'Karabin', 'karabiny, karabinki, pistolety maszynowe, strzelby', RIFLE, 'weapons@rifle@.ycd', 'motion'),
@@ -152,20 +154,20 @@ CATEGORIES = [
      'move_stealth@p_m_zero@unarmed@core.ycd', 'stealth'),
     ('pistol_cover', 'Pistolet — osłona', 'za osłoną z pistoletem', PISTOL_COVER, 'cover@move@ai@base@1h@.ycd', 'cover'),
 ]
-STEALTH_CORE = 'move_stealth@p_m_zero@unarmed@core.ycd'
-VANILLA_STEALTH_CORE = 'move_stealth@p_m_zero@unarmed@core'
 
-# weapon categories by the motion clip set of the game's Default weapon animations
+# weapon categories by the motion clip set KTWR BASE gives them
 RIFLE_MOTION = re.compile(r'^(anim@)?weapons@(rifle|submg|machinegun)@')
 PISTOL_MOTION = re.compile(r'^(anim@)?weapons@pistol@|^weapons@submg@micro_smg$|^weapon@w_pi_stungun$')
 ONE_HANDED_SUBMG = {'weapons@submg@micro_smg'}
-# add-on weapons: name -> (category, vanilla twin). A twin stands in for the add-on's own metas: its
-# weaponanimations entries (value fields, fallback clip sets) and its place in the movement modes.
-# Entries of a weapon that is not on the server are never looked up, so extra names cost nothing.
+DEFAULT_COVER = 'cover@move@ai@base@1h'
+# add-on weapons: name -> (category, the game weapon whose clip set chains it uses). Weapons that
+# are not on the server cost nothing; any other add-on weapon of the groups gets the category's
+# default chains (FALLBACK_TWIN).
 ADDON_WEAPONS = {
-    'WEAPON_AR15': ('rifle', 'WEAPON_CARBINERIFLE'),     # fivem/weapon_ar15 (its own metas are read)
+    'WEAPON_AR15': ('rifle', 'WEAPON_CARBINERIFLE'),     # fivem/weapon_ar15
     'WEAPON_GLOCK17': ('pistol', 'WEAPON_PISTOL'),
 }
+FALLBACK_TWIN = {'rifle': 'WEAPON_CARBINERIFLE', 'pistol': 'WEAPON_PISTOL'}
 
 
 # ---------------------------------------------------------------------------------------------
@@ -195,17 +197,13 @@ def read_packages(packs_dir):
 
 
 # ---------------------------------------------------------------------------------------------
-# weapon animations
+# weapon animations (KTWR BASE: the game's files with KTWR's routing, all DLC weapons)
 # ---------------------------------------------------------------------------------------------
 def load_sets(paths):
     """{set key: {'fallback': str, 'weapons': {weapon: element}}} merged over the given files"""
     sets = {}
     for p in paths:
-        try:
-            root = ET.parse(p).getroot()
-        except ET.ParseError as e:            # a few community templates are not well-formed
-            print(f'skipping {p}: {e}')
-            continue
+        root = ET.parse(p).getroot()
         for s in root.find('WeaponAnimationsSets'):
             d = sets.setdefault(s.get('key'), {'fallback': (s.findtext('Fallback') or '').strip(), 'weapons': {}})
             for w in s.find('WeaponAnimations'):
@@ -228,29 +226,6 @@ def field(sets, set_key, weapon, name):
                 return e.text.strip()
         set_key = s['fallback']
     return ''
-
-
-def default_entry(sets, weapon):
-    for key in ('Default',):
-        w = sets.get(key, {}).get('weapons', {}).get(weapon)
-        if w is not None:
-            return w
-    return None
-
-
-def sparse_entry(weapon, template, overrides):
-    """A weapon entry that only sets ``overrides`` (clip set hashes). The other clip set fields are
-    left out (empty), so the game takes them from the set's fallback; value fields have no 'empty'
-    state and are copied from ``template``."""
-    e = ET.Element('Item', key=weapon)
-    for tag, v in overrides.items():
-        ET.SubElement(e, tag).text = v
-    for c in template:
-        if c.get('value') is not None:
-            ET.SubElement(e, c.tag, value=c.get('value'))
-        elif c.get('ref') is not None:
-            ET.SubElement(e, c.tag, ref='NULL')
-    return e
 
 
 # ---------------------------------------------------------------------------------------------
@@ -282,60 +257,6 @@ class ClipSets:
 
 
 # ---------------------------------------------------------------------------------------------
-# ped personality (stealth movement modes)
-# ---------------------------------------------------------------------------------------------
-def strip_item_types(e):
-    for x in e.iter():
-        x.attrib.pop('itemType', None)
-
-
-def movement_mode(src, name, cat, style_dicts, clipsets, extra_weapons, addons):
-    """Copy of a vanilla movement mode (DEFAULT_ACTION / MP_FEMALE_ACTION) whose stealth part uses the
-    style for its weapon kind. Add-on weapons are listed wherever their twin is (action and stealth,
-    as their own pedpersonality.meta does for the vanilla modes); weapons of the category still
-    missing from the stealth lists are added to the style's items."""
-    mm = copy.deepcopy(src)
-    strip_item_types(mm)
-    mm.find('Name').text = name
-    for part in mm.find('MovementModes'):
-        for it in part:
-            wl = it.find('Weapons')
-            names = {w.text.lower() for w in wl}
-            for w, twin in addons.items():
-                if twin.lower() in names and w.lower() not in names:
-                    ET.SubElement(wl, 'Item').text = w.lower()
-                    names.add(w.lower())
-    stealth = list(mm.find('MovementModes'))[1]
-    listed = {w.text.lower() for it in stealth for w in it.find('Weapons')}
-    for it in stealth:
-        weapons = [w.text.lower() for w in it.find('Weapons')]
-        for cs in it.find('ClipSets'):
-            core, upper = cs.find('MovementClipSetId'), cs.find('WeaponClipSetId')
-            up = (upper.text or '').strip()
-            if cat == 'rifle_stealth' and up == 'move_stealth@p_m_zero@2h@upper':
-                upper.text = clipsets.get(style_dicts['upper'], up)
-                target = True
-            elif cat == 'pistol_stealth' and up == 'move_stealth@p_m_zero@1h@upper':
-                upper.text = clipsets.get(style_dicts['upper'], up)
-                core.text = clipsets.get(style_dicts['core'], (core.text or '').strip())
-                target = True
-            elif cat == 'unarmed_stealth' and 'weapon_unarmed' in weapons:
-                core.text = clipsets.get(style_dicts['core'], (core.text or '').strip())
-                if up == VANILLA_STEALTH_CORE:
-                    upper.text = core.text
-                target = False
-            else:
-                target = False
-            if target:
-                wl = it.find('Weapons')
-                for w in extra_weapons:
-                    if w.lower() not in listed:
-                        ET.SubElement(wl, 'Item').text = w.lower()
-                        listed.add(w.lower())
-    return mm
-
-
-# ---------------------------------------------------------------------------------------------
 def write_xml(root, path, comment=None):
     ET.indent(root, space='  ')
     body = ET.tostring(root, encoding='unicode')
@@ -353,9 +274,6 @@ def lua_str(s):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--packs', required=True, help='folder with the KTWR .zip files')
-    ap.add_argument('--vanilla', default=os.path.join(ROOT, 'build', 'fivem-addon-weapon-tool-kit', 'templates', 'weapons'),
-                    help='weapon templates with the game\'s own weaponanimations.meta entries '
-                         '(git clone https://github.com/Hxrv3y/fivem-addon-weapon-tool-kit build/fivem-addon-weapon-tool-kit)')
     ap.add_argument('--out', default=DEFAULT_OUT)
     ap.add_argument('--addon', action='append', default=[], metavar='WEAPON_NAME=rifle|pistol:WEAPON_TWIN',
                     help='another add-on weapon, e.g. WEAPON_M4A1=rifle:WEAPON_CARBINERIFLE (repeatable)')
@@ -368,12 +286,11 @@ def main():
 
     dicts, previews, base = read_packages(a.packs)
     out = a.out
-    for sub in ('stream', os.path.join('html', 'img')):
+    for sub in ('stream', 'meta', os.path.join('html', 'img')):
         shutil.rmtree(os.path.join(out, sub), ignore_errors=True)
     for sub in ('stream', 'meta', 'shared', os.path.join('html', 'img')):
         os.makedirs(os.path.join(out, sub), exist_ok=True)
 
-    # the game's weapon animations: KTWR's full files (all DLC weapons) under the vanilla templates
     tmp = tempfile.mkdtemp()
     ktwr_files = []
     for n in base.namelist():
@@ -382,73 +299,47 @@ def main():
             open(p, 'wb').write(base.read(n))
             ktwr_files.append(p)
     ktwr = load_sets(sorted(ktwr_files))
-    vanilla = load_sets(sorted(glob.glob(os.path.join(a.vanilla, '*', 'weaponanimations.meta'))))
-    ar15 = load_sets([AR15_META]) if os.path.exists(AR15_META) else {}
 
-    def game(key):
-        """vanilla template set if it has the weapon, else KTWR's (all DLC weapons)"""
-        return vanilla if key in vanilla.get('Default', {}).get('weapons', {}) else ktwr
+    def chains(w):
+        """(male, female freemode) movement clip set chains and the cover chain of weapon w"""
+        m = field(ktwr, 'Default', w, 'MotionClipSetHash')
+        f = field(ktwr, 'MP_F_Freemode', w, 'MotionClipSetHash') or m
+        c = field(ktwr, 'Default', w, 'CoverMovementClipSetHash') or DEFAULT_COVER
+        return m, f, c
 
-    # weapon lists per category, from the Default motion clip set
-    cats = {'rifle': [], 'pistol': []}
+    # weapons per category, from their movement clip set
+    weapons = {}                              # name -> (category, male, female, cover)
     for w in ktwr['Default']['weapons']:
-        motion = field(ktwr, 'Default', w, 'MotionClipSetHash')
-        if motion in ONE_HANDED_SUBMG or PISTOL_MOTION.match(motion):
-            cats['pistol'].append(w)
-        elif RIFLE_MOTION.match(motion):
-            cats['rifle'].append(w)
-    for w, (cat, _twin) in ADDON_WEAPONS.items():
-        if w not in cats[cat]:
-            cats[cat].append(w)
-    twins = {w: twin for w, (_cat, twin) in ADDON_WEAPONS.items()}
+        m, f, c = chains(w)
+        if m in ONE_HANDED_SUBMG or PISTOL_MOTION.match(m):
+            weapons[w] = ('pistol', m, f, c)
+        elif RIFLE_MOTION.match(m):
+            weapons[w] = ('rifle', m, f, c)
+    for w, (cat, twin) in ADDON_WEAPONS.items():
+        weapons[w] = (cat,) + chains(twin)
+    fallback = {cat: (cat,) + chains(twin) for cat, twin in FALLBACK_TWIN.items()}
 
-    def entry_source(w):
-        """(sets, weapon) whose game entries stand for weapon w"""
-        if w == 'WEAPON_AR15' and ar15:
-            return ar15, w
-        w = twins.get(w, w)
-        return game(w), w
+    def chain_set(cat, idx):
+        """distinct chains of a category (idx 1 male, 2 female, 3 cover), the default included"""
+        out_ = {fallback[cat][idx]}
+        out_.update(v[idx] for v in weapons.values() if v[0] == cat)
+        return sorted(out_)
 
     clipsets = ClipSets()
-    renamed = {}                              # (package, dictionary file) -> new dictionary name
     shared_core = {}                          # bytes -> name (the pistol packages share one core)
 
     def stream_dict(pkg, fname, new):
         data = dicts[pkg][fname]
-        if fname == STEALTH_CORE:
-            if data in shared_core:
-                return shared_core[data]
-            shared_core[data] = new
+        if data in shared_core:
+            return shared_core[data]
+        shared_core[data] = new
         open(os.path.join(out, 'stream', new + '.ycd'), 'wb').write(data)
         return new
 
-    sets_root = ET.Element('CWeaponAnimationsSets')
-    sets_list = ET.SubElement(sets_root, 'WeaponAnimationsSets')
-
-    def add_set(key, fallback, entries):
-        s = ET.SubElement(sets_list, 'Item', key=key)
-        ET.SubElement(s, 'Fallback').text = fallback
-        wa = ET.SubElement(s, 'WeaponAnimations')
-        for e in entries:
-            wa.append(e)
-
-    # personality movement modes
-    ped_x = tempfile.mktemp(suffix='.xml')
-    ymt = os.path.join(tmp, 'pedpersonality.ymt')
-    open(ymt, 'wb').write(base.read('content/ped/pedpersonality.ymt'))
-    cw = os.environ.get('CWCONV', os.path.join(ROOT, 'build', 'cwconv', 'cwconv'))
-    subprocess.run([cw, 'ymt2xml', ymt, ped_x], check=True, stdout=subprocess.DEVNULL)
-    ped_root = ET.parse(ped_x).getroot()
-    modes_src = {m.findtext('Name').lower(): m for m in ped_root.find('MovementModes')}
-    ped_out = ET.Element('CPedModelInfo__PersonalityDataList')
-    ped_modes = ET.SubElement(ped_out, 'MovementModes')
-
     catalog = []
-    test_clipset = None
     for cat, label, hint, styles, dict_file, kind in CATEGORIES:
         entries = []
         for sid, pkg, name, variant, desc, preview in styles:
-            files = dicts[pkg]
             st = {'id': sid, 'label': name, 'variant': variant, 'desc': desc}
             img = previews.get(preview)
             if img:
@@ -459,67 +350,25 @@ def main():
                     im.thumbnail((640, 360), Image.LANCZOS)
                     im.save(path, quality=82, optimize=True)
                 st['img'] = 'img/' + slug + '.jpg'
+            d = stream_dict(pkg, dict_file, f'ktwr_{sid}')
+            st['dict'] = d
             if kind == 'motion':
-                d = stream_dict(pkg, dict_file, f'ktwr_{sid}')
-                st['dict'] = d
+                for ch in chain_set(cat, 1) + chain_set(cat, 2):
+                    clipsets.get(d, ch)
                 st['clips'] = {'idle': 'idle', 'walk': 'walk', 'run': 'run',
                                'sprint': 'sprint' if cat == 'rifle' else 'run'}
-                male, female = [], []
-                for w in cats[cat]:
-                    src, sw = entry_source(w)
-                    tmpl = default_entry(src, sw) if default_entry(src, sw) is not None else default_entry(ktwr, sw)
-                    m = field(src, 'Default', sw, 'MotionClipSetHash')
-                    male.append(sparse_entry(w, tmpl, {'MotionClipSetHash': clipsets.get(d, m)}))
-                    fm = field(src, 'MP_F_Freemode', sw, 'MotionClipSetHash') or m
-                    female.append(sparse_entry(w, tmpl, {'MotionClipSetHash': clipsets.get(d, fm)}))
-                st['set'], st['setF'] = f'KTWR_{sid.upper()}', f'KTWR_{sid.upper()}_F'
-                add_set(st['set'], 'Default', male)
-                add_set(st['setF'], 'MP_F_Freemode', female)
-                if test_clipset is None:
-                    test_clipset = clipsets.get(d, field(game('WEAPON_CARBINERIFLE'), 'Default',
-                                                         'WEAPON_CARBINERIFLE', 'MotionClipSetHash'))
             elif kind == 'cover':
-                d = stream_dict(pkg, dict_file, f'ktwr_{sid}')
-                st['dict'] = d
-                male, female = [], []
-                for w in cats['pistol']:
-                    src, sw = entry_source(w)
-                    tmpl = default_entry(src, sw) if default_entry(src, sw) is not None else default_entry(ktwr, sw)
-                    fb = field(src, 'Default', sw, 'CoverMovementClipSetHash') or 'cover@move@base@1h'
-                    c = clipsets.get(d, fb)
-                    e = sparse_entry(w, tmpl, {'CoverMovementClipSetHash': c, 'CoverAlternateMovementClipSetHash': c})
-                    male.append(e)
-                    female.append(copy.deepcopy(e))
-                st['set'], st['setF'] = f'KTWR_{sid.upper()}', f'KTWR_{sid.upper()}_F'
-                add_set(st['set'], 'Default', male)
-                add_set(st['setF'], 'MP_F_Freemode', female)
-            else:   # stealth: movement modes
-                sd = {}
-                if cat in ('rifle_stealth', 'pistol_stealth'):
-                    sd['upper'] = stream_dict(pkg, dict_file, f'ktwr_{sid}')
-                    st['dict'] = sd['upper']
-                if cat in ('pistol_stealth', 'unarmed_stealth'):
-                    sd['core'] = stream_dict(pkg, STEALTH_CORE, f'ktwr_{sid}_core')
-                    if cat == 'unarmed_stealth':
-                        st['dict'] = sd['core']
+                for ch in chain_set('pistol', 3):
+                    clipsets.get(d, ch)
+            else:                             # stealth: upper-body loops (overlay)
                 st['clips'] = {'idle': 'idle', 'walk': 'walk', 'run': 'run', 'sprint': 'run'}
-                extra = cats['rifle'] if cat == 'rifle_stealth' else cats['pistol'] if cat == 'pistol_stealth' else []
-                st['mode'], st['modeF'] = f'KTWR_{sid.upper()}', f'KTWR_{sid.upper()}_F'
-                ped_modes.append(movement_mode(modes_src['default_action'], st['mode'], cat, sd, clipsets, extra, twins))
-                ped_modes.append(movement_mode(modes_src['mp_female_action'], st['modeF'], cat, sd, clipsets, extra,
-                                               twins))
             entries.append(st)
         catalog.append((cat, label, hint, kind, entries))
 
+    test_clipset = clipsets.get('ktwr_r01', weapons['WEAPON_CARBINERIFLE'][1])
     write_xml(clipsets.xml(), os.path.join(out, 'meta', 'clip_sets.xml'),
-              'weapon_styles: one clip set per KTWR style dictionary (stream/ktwr_*.ycd) in front of\n'
-              'the game clip set it replaces; generated by tools/weapon_styles/build_weapon_styles.py')
-    write_xml(sets_root, os.path.join(out, 'meta', 'weaponanimations.meta'),
-              'weapon_styles: one weapon animation set per style (male + _F female). Entries only set\n'
-              'the motion / cover clip set; every other field falls back to the game\'s own set.')
-    write_xml(ped_out, os.path.join(out, 'meta', 'pedpersonality.meta'),
-              'weapon_styles: movement modes for the stealth styles (copies of DEFAULT_ACTION /\n'
-              'MP_FEMALE_ACTION with the style in the stealth part).')
+              'weapon_styles: a clip set per KTWR style dictionary (stream/ktwr_*.ycd) and weapon clip set\n'
+              'chain, the style in front of the chain; generated by tools/weapon_styles/build_weapon_styles.py')
 
     # catalogue for the scripts and the menu
     L = ['-- generated by tools/weapon_styles/build_weapon_styles.py; do not edit',
@@ -533,7 +382,7 @@ def main():
             if st.get('variant'):
                 parts.append(f'variant = {lua_str(st["variant"])}')
             parts.append(f'desc = {lua_str(st["desc"])}')
-            for k in ('img', 'dict', 'set', 'setF', 'mode', 'modeF'):
+            for k in ('img', 'dict'):
                 if st.get(k):
                     parts.append(f'{k} = {lua_str(st[k])}')
             if st.get('clips'):
@@ -542,13 +391,16 @@ def main():
             L.append('            { ' + ', '.join(parts) + ' },')
         L.append('        } },')
     L.append('    },')
-    L.append('    -- weapons with entries in the native sets / movement modes (others use the overlay)')
-    L.append('    native = {')
+    L.append("    -- weapon -> { category, movement clip set chain (male, female freemode), cover chain };")
+    L.append("    -- a style's clip set is '<style dict>@<chain>'")
+    L.append('    weapons = {')
+    for w in sorted(weapons):
+        L.append(f'        [`{w}`] = {{ ' + ', '.join(lua_str(x) for x in weapons[w]) + ' },')
+    L.append('    },')
+    L.append('    -- any other (add-on) weapon of the pistol / rifle groups')
+    L.append('    fallback = {')
     for cat in ('rifle', 'pistol'):
-        L.append(f'        {cat} = {{')
-        for w in cats[cat]:
-            L.append(f'            [`{w}`] = true,')
-        L.append('        },')
+        L.append(f'        {cat} = {{ ' + ', '.join(lua_str(x) for x in fallback[cat]) + ' },')
     L.append('    },')
     L.append('}')
     with open(os.path.join(out, 'shared', 'catalog.lua'), 'w', encoding='utf-8', newline='\n') as f:
@@ -559,9 +411,9 @@ def main():
         shutil.copy(icon, os.path.join(out, 'html', 'img', 'ar15.png'))
 
     n_dicts = len(os.listdir(os.path.join(out, 'stream')))
+    n_w = {cat: sum(1 for v in weapons.values() if v[0] == cat) for cat in ('rifle', 'pistol')}
     print(f'styles: {sum(len(e) for *_x, e in catalog)}, dictionaries: {n_dicts}, clip sets: {len(clipsets.items)}, '
-          f'weapon sets: {len(sets_list)}, movement modes: {len(ped_modes)}, '
-          f'rifle weapons: {len(cats["rifle"])}, pistol weapons: {len(cats["pistol"])}')
+          f'rifle weapons: {n_w["rifle"]}, pistol weapons: {n_w["pistol"]}')
 
 
 if __name__ == '__main__':

@@ -4,7 +4,7 @@ lua54 'yes'
 
 name 'weapon_styles'
 description 'Weapon holding styles per player (/style): KTWR animations by Mr.KobraX, OneSync'
-version '1.0.0'
+version '1.1.0'
 
 ui_page 'html/index.html'
 
@@ -15,15 +15,11 @@ files {
     'html/img/*.jpg',
     'html/img/*.png',
     'meta/clip_sets.xml',
-    'meta/weaponanimations.meta',
-    'meta/pedpersonality.meta',
 }
 
--- add-on clip sets: one per style dictionary (stream/ktwr_*.ycd)
+-- add-on clip sets: each style dictionary (stream/ktwr_*.ycd) in front of the weapons' own clip set
+-- chains; client/main.lua puts them on the ped (SET_PED_WEAPON_MOVEMENT_CLIPSET, cover override)
 data_file 'CLIP_SETS_FILE' 'meta/clip_sets.xml'
--- one weapon animation set and one movement mode per style, switched per player by client/main.lua
-data_file 'WEAPON_ANIMATIONS_FILE' 'meta/weaponanimations.meta'
-data_file 'PED_PERSONALITY_FILE' 'meta/pedpersonality.meta'
 
 shared_scripts {
     'config.lua',
