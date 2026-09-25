@@ -17,6 +17,10 @@ style per category is installed at a time. Here every style keeps its own dictio
   overlay  the dictionaries played as upper-body loops (idle / walk / run / sprint): the stealth
            styles, and every style when the game does not take the add-on clip sets
 
+Every animation and sequence gets a new, unique signature (cwconv ycdsig): the styles are edits of the
+same game animations and kept their signatures, which the game uses as cache keys, so with several
+styles loaded together it mixed up their track layouts and crashed on a style change.
+
 Weapon animation sets and movement modes of our own are not used: the game's loaders only add
 weapons to the sets / modes it already has (as its DLCs do), so a new set leaves the ped without
 weapon animations.
@@ -30,6 +34,7 @@ import io
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
@@ -267,6 +272,23 @@ def write_xml(root, path, comment=None):
         f.write(head + body + '\n')
 
 
+def check_signatures(stream_dir, cw):
+    """Every animation and sequence signature of the streamed dictionaries must be unique."""
+    tmpx = tempfile.mkdtemp()
+    seen = {}
+    for f in sorted(os.listdir(stream_dir)):
+        subprocess.run([cw, 'bin2xml', os.path.join(stream_dir, f), tmpx], check=True, stdout=subprocess.DEVNULL)
+        root = ET.parse(os.path.join(tmpx, f + '.xml')).getroot()
+        for anim in root.find('Animations'):
+            keys = [anim.findtext('Unknown1C')] + [s.findtext('Hash') for s in anim.find('Sequences')]
+            for key in keys:
+                if not key or key in seen:
+                    sys.exit(f'signature {key!r} of {f} is not unique ({seen.get(key)})')
+                seen[key] = f
+    shutil.rmtree(tmpx, ignore_errors=True)
+    return len(seen)
+
+
 def lua_str(s):
     return "'" + s.replace('\\', '\\\\').replace("'", "\\'") + "'"
 
@@ -326,14 +348,19 @@ def main():
         return sorted(out_)
 
     clipsets = ClipSets()
-    shared_core = {}                          # bytes -> name (the pistol packages share one core)
+    shared_core = {}                          # bytes -> name (identical dictionaries are streamed once)
+    cw = os.environ.get('CWCONV', os.path.join(ROOT, 'build', 'cwconv', 'cwconv'))
 
     def stream_dict(pkg, fname, new):
         data = dicts[pkg][fname]
         if data in shared_core:
             return shared_core[data]
         shared_core[data] = new
-        open(os.path.join(out, 'stream', new + '.ycd'), 'wb').write(data)
+        src = os.path.join(tmp, new + '.ycd')
+        open(src, 'wb').write(data)
+        # unique animation / sequence signatures (see the module docstring)
+        subprocess.run([cw, 'ycdsig', src, os.path.join(out, 'stream', new + '.ycd'), 'weapon_styles/' + new],
+                       check=True, stdout=subprocess.DEVNULL)
         return new
 
     catalog = []
@@ -410,10 +437,11 @@ def main():
     if os.path.exists(icon):                  # menu card of the AR-15's own low ready
         shutil.copy(icon, os.path.join(out, 'html', 'img', 'ar15.png'))
 
+    n_sigs = check_signatures(os.path.join(out, 'stream'), cw)
     n_dicts = len(os.listdir(os.path.join(out, 'stream')))
     n_w = {cat: sum(1 for v in weapons.values() if v[0] == cat) for cat in ('rifle', 'pistol')}
     print(f'styles: {sum(len(e) for *_x, e in catalog)}, dictionaries: {n_dicts}, clip sets: {len(clipsets.items)}, '
-          f'rifle weapons: {n_w["rifle"]}, pistol weapons: {n_w["pistol"]}')
+          f'unique signatures: {n_sigs}, rifle weapons: {n_w["rifle"]}, pistol weapons: {n_w["pistol"]}')
 
 
 if __name__ == '__main__':

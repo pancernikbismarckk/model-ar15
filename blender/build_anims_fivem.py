@@ -297,7 +297,11 @@ def main():
     write_ycd(items, xml_path)
     print('ycd xml', xml_path)
     subprocess.run([a.cwconv, 'xml2bin', xml_path, BF.STREAM], check=True)
-    subprocess.run([a.cwconv, 'check', os.path.join(BF.STREAM, DICT + '.ycd')], check=True)
+    ycd = os.path.join(BF.STREAM, DICT + '.ycd')
+    # unique animation signatures: the game caches animation data per signature, and Sollumz derives it
+    # from the animation name (hold, reload...), which other resources' dictionaries use as well
+    subprocess.run([a.cwconv, 'ycdsig', ycd, ycd, 'weapon_ar15/' + DICT], check=True)
+    subprocess.run([a.cwconv, 'check', ycd], check=True)
     write_lua(os.path.join(RESOURCE, 'anim_data.lua'), info)
     print('wrote', os.path.join(RESOURCE, 'anim_data.lua'))
 

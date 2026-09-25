@@ -101,13 +101,23 @@ python3 tools/weapon_styles/build_weapon_styles.py --packs <folder z paczkami KT
 
 Potrzebne paczki: `01. KTWR BASE (Required)`, `Rifle (Movement) Pack`, `Pistol (Movement) Pack`,
 `Pistol (Cover) Pack`. Generator zapisuje `stream/`, `meta/clip_sets.xml`, `shared/catalog.lua` i
-`html/img/` (słowniki KTWR są kopiowane bez zmian, pod nowymi nazwami), a wynik jest powtarzalny.
+`html/img/` (słowniki KTWR pod nowymi nazwami, z nowymi sygnaturami animacji — niżej), a wynik jest
+powtarzalny; na końcu sprawdza, że żadna sygnatura się nie powtarza.
 Kolejna broń add-on z własnym łańcuchem: `--addon WEAPON_NAZWA=rifle:WEAPON_CARBINERIFLE`.
 
 ## Co jest sprawdzone, a co wymaga testu w grze
 
 - Z nagrania z gry (wersja 1.0): menu, zapis wyboru i wykrycie trybu działały, a style KTWR nie —
   broń wisiała w dłoni, bo gra nie utworzyła własnych zestawów animacji broni. Poprawione w 1.1.
+- Ze zrzutu crasha (wersja 1.1, zmiana stylu pistoletu, `GTA5_b3258.exe+137D04A`): gra padała w
+  wątku animacji przy składaniu klatki — zapisywała dane ścieżek pod złe adresy. Przyczyna: każda
+  animacja ma sygnaturę, pod którą gra trzyma w pamięci podręcznej mapę „ścieżki animacji → kości
+  postaci”. Style KTWR to przeróbki tych samych animacji z gry i zostawiły ich sygnatury, choć mają
+  inne ścieżki (np. jedna sygnatura przy 8 różnych układach w stylach pistoletu). W singlu KTWR
+  działa, bo naraz jest tylko jeden styl; tu po zmianie stylu gra brała mapę od poprzedniego.
+  Od 1.2 każda animacja i sekwencja ma własną sygnaturę (`cwconv ycdsig`: zmienione są tylko te
+  pola, reszta plików bajt w bajt jak u autora). Animacje AR-15 też (Sollumz liczy sygnaturę z
+  nazwy animacji, np. `reload`, a takie nazwy mają też inne zasoby).
 - Sprawdzone tutaj: skrypty klienta i serwera przeszły symulowane scenariusze na zastępczych
   natywkach (zestaw klipów tylko po załadowaniu i tylko zdefiniowany w `clip_sets.xml`, ponowne
   założenie po zmianie broni, pojeździe i śmierci, osłona, skradanie, pierwsza osoba, kobieca

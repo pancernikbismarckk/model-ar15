@@ -4,7 +4,7 @@ lua54 'yes'
 
 name 'weapon_ar15'
 description 'AR-15 add-on weapon (semi-automatic) with its own animations: low ready, reload with a dropped magazine; holographic sight, angled foregrip, weapon light and laser'
-version '1.1.0'
+version '1.1.1'
 
 files {
     'meta/weaponcomponents.meta',
