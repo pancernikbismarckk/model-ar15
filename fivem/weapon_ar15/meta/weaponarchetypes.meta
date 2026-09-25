@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- All models of weapon_ar15 share one texture dictionary: stream/w_ar_ar15.ytd -->
+<!-- All models of weapon_ar15 share one texture dictionary: stream/w_ar_ar15.ytd.
+     w_ar_ar15_mag_prop is the magazine client.lua shows in the hand and drops during the reload. -->
 <CWeaponModelInfo__InitDataList>
   <InitDatas>
     <Item>
@@ -13,6 +14,12 @@
       <txdName>w_ar_ar15</txdName>
       <ptfxAssetName>NULL</ptfxAssetName>
       <lodDist value="500" />
+    </Item>
+    <Item>
+      <modelName>w_ar_ar15_mag_prop</modelName>
+      <txdName>w_ar_ar15</txdName>
+      <ptfxAssetName>NULL</ptfxAssetName>
+      <lodDist value="100" />
     </Item>
     <Item>
       <modelName>w_ar_ar15_sights</modelName>

@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  WEAPON_AR15: add-on rifle using the vanilla carbine rifle's ammo (AMMO_RIFLE), sounds and effects.
-  Aiming info is defined here (AR15_BASE_STRAFE) so the file does not depend on vanilla aiming names.
-  First-person offsets are starting values; tune them in game if the sight picture is off.
+  WEAPON_AR15: add-on rifle on the vanilla carbine rifle's base (AMMO_RIFLE, sounds, effects, aiming,
+  recoil shake, first-person offsets), semi-automatic only.
 -->
 <CWeaponInfoBlob>
   <SlotNavigateOrder>
@@ -34,14 +33,7 @@
   <TintSpecValues />
   <FiringPatternAliases />
   <UpperBodyFixupExpressionData />
-  <AimingInfos>
-    <Item type="CAimingInfo">
-      <Name>AR15_BASE_STRAFE</Name>
-      <HeadingLimit value="60.000000" />
-      <SweepPitchMin value="-70.000000" />
-      <SweepPitchMax value="70.000000" />
-    </Item>
-  </AimingInfos>
+  <AimingInfos />
   <Infos>
     <Item>
       <Infos>
@@ -63,12 +55,12 @@
           <WheelSlot>WHEEL_RIFLE</WheelSlot>
           <Group>GROUP_RIFLE</Group>
           <AmmoInfo ref="AMMO_RIFLE" />
-          <AimingInfo ref="AR15_BASE_STRAFE" />
+          <AimingInfo ref="RIFLE_LO_BASE_STRAFE" />
           <ClipSize value="30" />
           <AccuracySpread value="3.000000" />
           <AccurateModeAccuracyModifier value="0.500000" />
           <RunAndGunAccuracyModifier value="2.000000" />
-          <RunAndGunAccuracyMinOverride value="-1.000000" />
+          <RunAndGunAccuracyMaxModifier value="1.000000" />
           <RecoilAccuracyMax value="0.500000" />
           <RecoilErrorTime value="3.000000" />
           <RecoilRecoveryRate value="1.000000" />
@@ -79,7 +71,7 @@
           <RecoilAccuracyToAllowHeadShotPlayer value="0.175000" />
           <MinHeadShotDistancePlayer value="5.000000" />
           <MaxHeadShotDistancePlayer value="40.000000" />
-          <HeadShotDamageModifierPlayer value="1.500000" />
+          <HeadShotDamageModifierPlayer value="18.000000" />
           <Damage value="32.000000" />
           <DamageTime value="0.000000" />
           <DamageTimeInVehicle value="0.000000" />
@@ -159,7 +151,7 @@
             <FlashFx>muz_assault_rifle</FlashFx>
             <FlashFxAlt>muz_alternate_star</FlashFxAlt>
             <FlashFxFP>muz_assault_rifle_fp</FlashFxFP>
-            <FlashFxFPAlt />
+            <FlashFxAltFP />
             <MuzzleSmokeFx>muz_smoking_barrel</MuzzleSmokeFx>
             <MuzzleSmokeFxFP>muz_smoking_barrel_fp</MuzzleSmokeFxFP>
             <MuzzleSmokeFxMinLevel value="0.300000" />
@@ -206,12 +198,12 @@
           <NetworkPedDamageModifier value="1.000000" />
           <NetworkHeadShotPlayerDamageModifier value="1.700000" />
           <LockOnRange value="65.000000" />
-          <WeaponRange value="500.000000" />
+          <WeaponRange value="120.000000" />
           <BulletDirectionOffsetInDegrees value="0.000000" />
           <AiSoundRange value="-1.000000" />
           <AiPotentialBlastEventRange value="-1.000000" />
-          <DamageFallOffRangeMin value="80.000000" />
-          <DamageFallOffRangeMax value="250.000000" />
+          <DamageFallOffRangeMin value="47.500000" />
+          <DamageFallOffRangeMax value="120.000000" />
           <DamageFallOffModifier value="0.300000" />
           <VehicleWeaponHash />
           <DefaultCameraHash>DEFAULT_THIRD_PERSON_PED_AIM_CAMERA</DefaultCameraHash>
@@ -225,11 +217,11 @@
           <RunAndGunAlternativeOrScopedCameraHash />
           <CinematicShootingAlternativeOrScopedCameraHash />
           <PovTurretCameraHash />
-          <CameraFov value="45.000000" />
+          <CameraFov value="35.000000" />
           <FirstPersonAimFovMin value="42.000000" />
           <FirstPersonAimFovMax value="47.000000" />
-          <FirstPersonScopeFov value="30.000000" />
-          <FirstPersonScopeAttachmentFov value="30.000000" />
+          <FirstPersonScopeFov value="20.000000" />
+          <FirstPersonScopeAttachmentFov value="20.000000" />
           <FirstPersonRNGOffset x="0.000000" y="0.000000" z="0.000000" />
           <FirstPersonRNGRotationOffset x="0.000000" y="0.000000" z="0.000000" />
           <FirstPersonLTOffset x="0.000000" y="0.000000" z="0.000000" />
@@ -242,12 +234,19 @@
           <FirstPersonAsThirdPersonRNGOffset x="-0.025000" y="0.000000" z="-0.075000" />
           <FirstPersonAsThirdPersonLTOffset x="0.025000" y="0.000000" z="-0.075000" />
           <FirstPersonAsThirdPersonScopeOffset x="0.075000" y="-0.050000" z="-0.060000" />
-          <FirstPersonAsThirdPersonWeaponBlockedOffset x="-0.050000" y="0.000000" z="-0.050000" />
+          <FirstPersonAsThirdPersonWeaponBlockedOffset x="-0.100000" y="0.000000" z="-0.100000" />
           <FirstPersonDofSubjectMagnificationPowerFactorNear value="1.025000" />
           <FirstPersonDofMaxNearInFocusDistance value="0.000000" />
           <FirstPersonDofMaxNearInFocusDistanceBlendLevel value="0.300000" />
           <FirstPersonScopeAttachmentData />
           <ZoomFactorForAccurateMode value="1.300000" />
+          <RecoilShakeHash>ASSAULT_RIFLE_RECOIL_SHAKE</RecoilShakeHash>
+          <RecoilShakeHashFirstPerson>FPS_ASSAULT_RIFLE_RECOIL_SHAKE</RecoilShakeHashFirstPerson>
+          <AccuracyOffsetShakeHash>DEFAULT_THIRD_PERSON_ACCURACY_OFFSET_SHAKE</AccuracyOffsetShakeHash>
+          <MinTimeBetweenRecoilShakes value="100" />
+          <RecoilShakeAmplitude value="0.333000" />
+          <ExplosionShakeAmplitude value="-1.000000" />
+          <ReticuleHudPosition x="0.000000" y="0.000000" />
           <AimOffsetMin x="0.250000" y="0.200000" z="0.600000" />
           <AimProbeLengthMin value="0.430000" />
           <AimOffsetMax x="0.165000" y="-0.180000" z="0.470000" />
@@ -255,6 +254,9 @@
           <AimOffsetMinFPSIdle x="0.162000" y="0.225000" z="0.052000" />
           <AimOffsetMedFPSIdle x="0.187000" y="0.197000" z="0.321000" />
           <AimOffsetMaxFPSIdle x="0.155000" y="0.038000" z="0.364000" />
+          <AimOffsetEndPosMinFPSIdle x="-0.284000" y="0.612000" z="-0.205000" />
+          <AimOffsetEndPosMedFPSIdle x="-0.178000" y="0.639000" z="0.616000" />
+          <AimOffsetEndPosMaxFPSIdle x="-0.217000" y="-0.096000" z="0.887000" />
           <AimOffsetMinFPSLT x="0.180000" y="0.231000" z="0.669000" />
           <AimOffsetMaxFPSLT x="0.048000" y="-0.225000" z="0.409000" />
           <AimOffsetMinFPSRNG x="0.120000" y="0.275000" z="0.509000" />
@@ -269,7 +271,7 @@
           <ReticuleScale value="0.300000" />
           <ReticuleStyleHash>WEAPONTYPE_RIFLE</ReticuleStyleHash>
           <FirstPersonReticuleStyleHash />
-          <PickupHash>PICKUP_WEAPON_CARBINERIFLE</PickupHash>
+          <PickupHash />
           <MPPickupHash>PICKUP_AMMO_BULLET_MP</MPPickupHash>
           <HumanNameHash>WT_AR15</HumanNameHash>
           <MovementModeConditionalIdle>MMI_2Handed</MovementModeConditionalIdle>

@@ -13,6 +13,8 @@ Writes
     fivem/weapon_ar15/stream/w_at_ar15_afgrip.ydr  COMPONENT_AT_AR15_AFGRIP
     fivem/weapon_ar15/stream/w_at_ar15_flsh.ydr    COMPONENT_AT_AR15_FLSH
     fivem/weapon_ar15/stream/w_at_ar15_laser.ydr   COMPONENT_AT_AR15_LASER
+    fivem/weapon_ar15/stream/w_ar_ar15_mag_prop.ydr  magazine prop with collision (reload: in the
+                                                     hand, dropped on the floor; client.lua)
     fivem/weapon_ar15/stream/w_ar_ar15.ytd         shared texture dictionary
     fivem/weapon_ar15_sollumz.blend                the Sollumz scene, for editing in Blender
 
@@ -47,6 +49,7 @@ STREAM = os.path.join(RESOURCE, 'stream')
 SCENE_OUT = os.path.join(ROOT, 'fivem', 'weapon_ar15_sollumz.blend')
 
 TXD = 'w_ar_ar15'
+MAG_PROP = 'w_ar_ar15_mag_prop'
 MM = 0.001
 
 # ---------------------------------------------------------------------------
@@ -366,8 +369,8 @@ def bind(ob, arm, bone):
     ob.matrix_basis = arm.data.bones[bone].matrix_local.inverted()
 
 
-def add_bound(drawable, lo, hi):
-    """Single box collision (used when the weapon lies on the ground as a pickup)."""
+def add_bound(drawable, lo, hi, material='METAL_HOLLOW_SMALL'):
+    """Single box collision (weapon lying on the ground as a pickup, dropped magazine)."""
     from Sollumz.sollumz_properties import SollumType
     from Sollumz.tools.blenderhelper import create_blender_object, create_empty_object
     from Sollumz.tools.meshhelper import create_box_from_extents
@@ -380,7 +383,7 @@ def add_bound(drawable, lo, hi):
     create_box_from_extents(box.data, Vector(lo) * MM, Vector(hi) * MM)
     from Sollumz.ybn.collision_materials import collisionmats, create_collision_material_from_index
     box.data.materials.append(create_collision_material_from_index(
-        next(i for i, m in enumerate(collisionmats) if m.name == 'METAL_HOLLOW_SMALL')))
+        next(i for i, m in enumerate(collisionmats) if m.name == material)))
     for flag in ('object',):
         setattr(box.composite_flags1, flag, True)
     for flag in ('map_weapon', 'map_dynamic', 'map_animal', 'map_cover', 'map_vehicle', 'vehicle_not_bvh',
@@ -427,6 +430,15 @@ def build_scene(pngs):
             assign(me, mats, src[part].data.materials[0].name)
             ob = model_obj(f'{comp}__{part}', me, carm)
             bind(ob, carm, 'gun_root')
+
+    # magazine prop: the clip's mesh (origin on WAPClip like the component) with its own collision
+    origin = heads['WAPClip'] * MM
+    parm = armature_drawable(MAG_PROP, [('gun_root', tuple(heads['WAPClip']), None, None)], origin=origin)
+    me = world_mesh(src['ar15_magazine'], parm.matrix_world.inverted() @ rest['ar15_magazine'])
+    assign(me, mats, src['ar15_magazine'].data.materials[0].name)
+    bind(model_obj(f'{MAG_PROP}__ar15_magazine', me, parm), parm, 'gun_root')
+    vs = np.array([v.co[:] for v in me.vertices]) / MM
+    add_bound(parm, vs.min(0), vs.max(0), material='PLASTIC_HOLLOW')
 
     # drop the game rig, keep only the Sollumz drawables
     keep = {o for o in bpy.data.objects if o.sollum_type != 'sollumz_none'}

@@ -23,9 +23,8 @@ ani oznaczeń bezpiecznika. Wszystkie nazwy obiektów są generyczne (`weapon_ar
 | `weapon_ar15_game.blend` | **wersja do gry**: 9 804 trójkątów ze wszystkimi dodatkami, szkielet, 9 animacji |
 | `export/game/weapon_ar15_game.{glb,fbx}` | eksport wersji do gry z animacjami |
 | `textures/game/*.png` | wypieczone tekstury PBR wersji do gry (broń 2048, dodatki 1024) |
-| `fivem/weapon_ar15/` | **gotowy zasób FiveM** (`.ydr`/`.ytd`, pliki meta, `client.lua`) |
+| `fivem/weapon_ar15/` | **gotowy zasób FiveM**: modele `.ydr`/`.ytd`, animacje `anim@weapon_ar15.ycd`, pliki meta, skrypty, `config.lua` |
 | `fivem/ox_inventory/` | `weapons_ar15.lua` (wpisy do `ox_inventory/data/weapons.lua`) + ikony przedmiotów |
-| `fivem/tools/` | generator `weaponanimations.meta` (PowerShell i Python) |
 | `fivem/weapon_ar15_sollumz.blend` | scena Sollumz (do edycji i ponownego eksportu), tekstury z `textures/fivem/` |
 | `tools/cwconv/` | konwerter CodeWalker XML ↔ `.ydr`/`.ytd` (na CodeWalker.Core) |
 | `blender/*.py` | generator — model jest w całości budowany skryptem, więc każdą poprawkę można odtworzyć |
@@ -175,23 +174,37 @@ celownika zawiera przyrządy złożone. Po zdjęciu celownika `client.lua` przyw
 
 ### Instalacja
 
-1. Skopiuj `fivem/weapon_ar15` do `resources/` serwera.
-2. Wygeneruj animacje (raz, ok. 1 min): w OpenIV lub CodeWalkerze wyeksportuj z gry
-   `update\update.rpf\common\data\ai\weaponanimations.meta`, potem:
-   ```
-   powershell -ExecutionPolicy Bypass -File fivem\tools\make_weaponanimations.ps1 -Vanilla C:\sciezka\weaponanimations.meta
-   ```
-   (albo `python3 fivem/tools/make_weaponanimations.py <plik>`). Skrypt kopiuje wszystkie zestawy
-   animacji `WEAPON_CARBINERIFLE` jako `WEAPON_AR15` i nadpisuje `meta/weaponanimations.meta`.
-   Nazwy zestawów animacji pochodzą z plików gry, dlatego nie są wpisane na sztywno: zła nazwa
-   potrafi wysypać klienta.
-3. W `ox_inventory/data/weapons.lua` dopisz wpis z `Weapons` i cztery wpisy z `Components` z pliku
-   `fivem/ox_inventory/weapons_ar15.lua` (nie podmieniaj całego pliku ox). Ikony z
-   `fivem/ox_inventory/web/images/` skopiuj do `ox_inventory/web/images/`.
-4. `server.cfg`: `ensure weapon_ar15` przed `ensure ox_inventory`.
-5. Test: `/giveitem <id> WEAPON_AR15 1`, `/giveitem <id> ammo-rifle 120`,
+1. Skopiuj folder `fivem/weapon_ar15` do `resources/` serwera i dopisz `ensure weapon_ar15` w
+   `server.cfg` (przed `ensure ox_inventory`). To wszystko: modele, tekstury, animacje, pliki meta
+   i skrypty są w środku, nic nie trzeba generować ani wyciągać z gry.
+2. Tylko dla ox_inventory: w `ox_inventory/data/weapons.lua` dopisz wpis z `Weapons` i cztery wpisy
+   z `Components` z pliku `fivem/ox_inventory/weapons_ar15.lua` (nie podmieniaj całego pliku ox).
+   Ikony z `fivem/ox_inventory/web/images/` skopiuj do `ox_inventory/web/images/`.
+3. Test: `/giveitem <id> WEAPON_AR15 1`, `/giveitem <id> ammo-rifle 120`,
    `/giveitem <id> at_ar15_holo 1` (i `at_ar15_grip`, `at_ar15_flashlight`, `at_ar15_laser`).
    Dodatek zakłada się, używając przedmiotu z bronią w ręku, a zdejmuje z menu broni w ekwipunku.
+
+### Animacje w grze
+
+- Postać używa animacji karabinka z GTA (`WEAPON_CARBINERIFLE`: celowanie, bieg, osłony, pierwsza
+  osoba, kobieca postać freemode) z `meta/weaponanimations.meta` i `meta/pedpersonality.meta`, a na
+  nie `client_anims.lua` nakłada własne animacje z `stream/anim@weapon_ar15.ycd`:
+  - **low ready** (`hold`, pętla): broń nisko przez klatkę, gdy karabin jest w ręku, a gracz nie
+    celuje i nie strzela; celowanie od razu ją przerywa. Każdy gracz może ją wyłączyć u siebie
+    komendą `/ar15lowready`.
+  - **przeładowanie** (`reload` 2,0 s, z pustego `reload_empty` 2,4 s z uderzeniem w zatrzask
+    zamka): odpala się, gdy gra zaczyna swoje przeładowanie (R, ox_inventory, codem, pusty
+    magazynek). Przeładowanie gry dalej działa pod spodem, więc amunicja liczy się jak dotąd.
+    Magazynek broni jest wtedy ukrywany, a w dłoni jest model magazynka (`w_ar_ar15_mag_prop`,
+    z kolizją) ustawiany klatka po klatce (`anim_data.lua`); wyciągnięty magazynek spada na ziemię
+    i znika po 20 s. Strzał jest zablokowany, dopóki lewa dłoń nie wróci na łoże.
+  - **części broni**: suwadło, spust, pokrywa okna i zatrzask zamka grają klipy `w_fire`,
+    `w_fire_last` (zamek zostaje w tyle po ostatnim naboju), `w_reload`, `w_reload_empty`.
+- Animacje postaci są grane na własnym pedzie, więc gra synchronizuje je do innych graczy;
+  magazynki w dłoni i na ziemi rysuje lokalnie każdy klient dla graczy w promieniu 60 m.
+- Własne animacje nie grają w pierwszej osobie, w pojeździe, w osłonie, przy ragdollu, pływaniu,
+  wspinaniu i podczas animacji z innych skryptów (emotki, animacje ekwipunku) — wtedy są animacje z gry.
+- Ustawienia w `config.lua` (low ready, przeładowanie, wypadanie magazynków, części broni, zasięg).
 
 Latarka włącza się jak w każdej broni z latarką w GTA. Laser: klawisz **J** (FiveM → Ustawienia →
 Klawisze → FiveM, „AR-15: laser wł./wył.”); promień widzą też inni gracze w promieniu 80 m.
@@ -201,16 +214,24 @@ Klawisze → FiveM, „AR-15: laser wł./wył.”); promień widzą też inni gr
 - Sprawdzone tutaj: pliki `.ydr`/`.ytd` wczytują się w CodeWalker.Core i po imporcie do Blendera
   składają się poprawnie; wszystkie nazwy pól i flag w plikach meta istnieją w liście nazw metadanych
   gry (CodeWalker); składnia Lua; wpisy ox_inventory; build jest powtarzalny (identyczne sumy MD5).
+  `weaponanimations.meta` i `pedpersonality.meta` to wpisy karabinka z plików gry (dwa niezależne
+  źródła dały te same zestawy). `anim@weapon_ar15.ycd` jest po konwersji z powrotem przez
+  CodeWalker.Core zgodny z animacjami z podglądu co do 0,01 mm (`blender/verify_anims_fivem.py`),
+  a `client_anims.lua` przeszedł symulowany scenariusz (wyjęcie broni, low ready, celowanie,
+  przeładowanie z pustego i z częściowego, wypadnięcie i zniknięcie magazynka, pierwsza osoba) na
+  zastępczych natywkach FiveM.
 - Do sprawdzenia w grze (nie da się tu uruchomić GTA): ułożenie broni w dłoni (kość `Gun_GripR`
   skopiowana z waniliowego karabinu), przesunięcia widoku z pierwszej osoby (`FirstPerson*` w
   `weapons.meta`), punkt świecenia latarki i mocowanie lasera na `WAPSupp_2`. Broń strzela tylko
   ogniem pojedynczym (bez flagi `Automatic`, najwyżej jeden strzał na 0,15 s). Wartości balansu
   (obrażenia 32, 30 naboi) to punkt wyjścia do własnych ustawień.
-- Animacje z `weapon_ar15_game.blend` to animacje modelu (suwadło, pokrywa, magazynek). W grze postać
-  używa animacji karabinka z gry, a błysk z lufy i wyrzut łusek to efekty GTA na kościach
-  `Gun_Muzzle` i `Gun_VFX_Eject`. Kości ruchomych części są w `.ydr`, gotowe pod słownik animacji `.ycd`.
+- Błysk z lufy i wyrzut łusek to efekty GTA na kościach `Gun_Muzzle` i `Gun_VFX_Eject`.
+- Do sprawdzenia w grze: czy gra pozwala ukryć magazynek-komponent (jeśli nie, magazynek broni idzie
+  za dłonią w klipie `w_reload`, a na ziemię spada jego kopia) i czy klipy części broni (`w_*`)
+  grają na obiekcie broni trzymanej przez postać (jeśli nie, części po prostu stoją). Kąty
+  mocowania magazynka w dłoni skrypt kalibruje sam przy starcie.
 
-## Animacje postaci (do akceptacji)
+## Animacje postaci
 
 `blender/ar15_anims.py` robi animacje na szkielecie peda GTA V (`blender/ped_rig.py`,
 `blender/data_ped_skeleton.json`), z bronią trzymaną tak, jak trzyma ją gra (`Gun_GripR` na
@@ -219,7 +240,9 @@ i `reload_empty` (2,4 s) w rytmie przeładowania Carbine Rifle z GTA V (magazyne
 przy lewym biodrze, na pusto uderzenie w zatrzask zamka), `fire` / `fire_last` dla samej broni oraz
 `shot` / `empty` tylko do podglądu. Palce lewej dłoni zaciskają się na prawdziwej siatce broni
 (`ped_anim.fit_fingers`). Podgląd: `python3 blender/ar15_anims.py --out <katalog>` zapisuje .blend,
-glTF i zdarzenia (łuski, wypadnięcie magazynka) do `ar15_anims.json`.
+glTF i zdarzenia (łuski, wypadnięcie magazynka) do `ar15_anims.json`. Do gry te same klipy eksportuje
+`blender/build_anims_fivem.py` (Sollumz + CodeWalker.Core): `stream/anim@weapon_ar15.ycd` i
+`anim_data.lua` (tor magazynka w dłoni).
 
 ## Odtworzenie modelu
 
@@ -245,6 +268,8 @@ git clone https://github.com/dexyfex/CodeWalker build/CodeWalker   # testowane n
 dotnet build tools/cwconv -c Release -o build/cwconv
 python3 blender/build_fivem.py --sollumz build/Sollumz --cwconv build/cwconv/cwconv
 python3 blender/verify_fivem.py --sollumz build/Sollumz --cwconv build/cwconv/cwconv   # kontrola
+python3 blender/build_anims_fivem.py --sollumz build/Sollumz --cwconv build/cwconv/cwconv  # animacje .ycd
+python3 blender/verify_anims_fivem.py --cwconv build/cwconv/cwconv                         # kontrola animacji
 python3 blender/render_icons.py                                    # ikony ox_inventory
 ```
 
