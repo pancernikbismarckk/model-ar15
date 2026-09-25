@@ -19,7 +19,7 @@ return {
             type = 'sight',
             weight = 320,
             client = {
-                component = { `COMPONENT_AT_AR15_HOLO` },
+                component = { `COMPONENT_AT_AR15_SCOPE_HOLO` },
                 usetime = 2500
             }
         },

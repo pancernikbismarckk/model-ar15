@@ -21,8 +21,9 @@ HOLO_LEN, HOLO_W, HOLO_H = 96.5, 58.4, 73.7   # overall L x W x H incl. mount an
 HOLO_X0, HOLO_X1 = HOLO_REAR_X, HOLO_REAR_X + HOLO_LEN
 HOLO_WIN_Z = 41.5               # window centre above the rail top (local)
 HOLO_WINDOW_Z = RAIL_TOP + HOLO_WIN_Z
-GRIP_FRONT_X = 311.5            # front end of the angled foregrip (outline is drawn toe-first, then mirrored)
-GRIP_TNUTS = (276.5, 236.5)     # bottom M-LOK slot centres used by the grip
+GRIP_FRONT_X = 191.5            # front end of the angled foregrip (outline is drawn toe-first, then mirrored)
+GRIP_TNUTS = (156.5, 116.5)     # bottom M-LOK slot centres used by the grip: mid handguard, where the
+                                # support hand sits in GTA's rifle animations (about 0.35 m ahead of the grip)
 GRIP_X = GRIP_FRONT_X - 55.0
 SIDE_SLOT_X = 356.5             # front side M-LOK slot centre
 SIDE_Z = HG_Z0 + 1.0

@@ -155,7 +155,7 @@ Broń jest przedmiotem `WEAPON_AR15`, a każdy dodatek osobnym przedmiotem ox_in
 | `WEAPON_AR15` (AR-15, amunicja `ammo-rifle`) | — | `w_ar_ar15` | — |
 | — (domyślny) | `COMPONENT_AR15_CLIP_01` (30 naboi) | `w_ar_ar15_mag1` | `WAPClip` |
 | — (domyślny) | `COMPONENT_AR15_SIGHTS` (przyrządy rozłożone) | `w_ar_ar15_sights` | `WAPScop` |
-| `at_ar15_holo` | `COMPONENT_AT_AR15_HOLO` | `w_at_ar15_holo` | `WAPScop` |
+| `at_ar15_holo` | `COMPONENT_AT_AR15_SCOPE_HOLO` | `w_at_ar15_holo` | `WAPScop` |
 | `at_ar15_grip` | `COMPONENT_AT_AR15_AFGRIP` | `w_at_ar15_afgrip` | `WAPGrip` |
 | `at_ar15_flashlight` | `COMPONENT_AT_AR15_FLSH` | `w_at_ar15_flsh` | `WAPFlshLasr` |
 | `at_ar15_laser` | `COMPONENT_AT_AR15_LASER` | `w_at_ar15_laser` | `WAPSupp_2` |

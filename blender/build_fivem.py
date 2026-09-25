@@ -9,7 +9,7 @@ Writes
     fivem/weapon_ar15/stream/w_ar_ar15.ydr         weapon (skeleton, moving parts on their own bones)
     fivem/weapon_ar15/stream/w_ar_ar15_mag1.ydr    COMPONENT_AR15_CLIP_01 (default)
     fivem/weapon_ar15/stream/w_ar_ar15_sights.ydr  COMPONENT_AR15_SIGHTS (default, iron sights up)
-    fivem/weapon_ar15/stream/w_at_ar15_holo.ydr    COMPONENT_AT_AR15_HOLO (holo + iron sights folded)
+    fivem/weapon_ar15/stream/w_at_ar15_holo.ydr    COMPONENT_AT_AR15_SCOPE_HOLO (holo + iron sights folded)
     fivem/weapon_ar15/stream/w_at_ar15_afgrip.ydr  COMPONENT_AT_AR15_AFGRIP
     fivem/weapon_ar15/stream/w_at_ar15_flsh.ydr    COMPONENT_AT_AR15_FLSH
     fivem/weapon_ar15/stream/w_at_ar15_laser.ydr   COMPONENT_AT_AR15_LASER
@@ -67,10 +67,10 @@ BONES = [
     ('Gun_Main_Bone', (0.0, 0.0, 0.0), 'Gun_GripR', None),
     ('Gun_Muzzle', (442.5, 0.0, 0.0), 'Gun_Main_Bone', Quaternion((0.0, 1.0, 0.0, 0.0))),       # 180 deg about X
     ('Gun_VFX_Eject', (-52.0, -16.0, 5.0), 'Gun_Main_Bone', Quaternion((0.7071068, 0.0, 0.0, -0.7071068))),  # X -> right
-    ('Gun_GripL', (256.5, 0.0, -24.0), 'Gun_Main_Bone', None),
+    ('Gun_GripL', (136.5, 0.0, -45.0), 'Gun_Main_Bone', None),     # support hand on the foregrip
     ('WAPClip', (-44.0, 0.0, -16.5), 'Gun_Main_Bone', None),
     ('WAPScop', (-61.8, 0.0, 31.6), 'Gun_Main_Bone', None),
-    ('WAPGrip', (256.5, 0.0, -19.7), 'Gun_Main_Bone', None),
+    ('WAPGrip', (136.5, 0.0, -19.7), 'Gun_Main_Bone', None),
     ('WAPFlshLasr', tuple(LIGHT_EMIT), 'Gun_Main_Bone', None),
     ('WAPSupp_2', tuple(LASER_EMIT), 'Gun_Main_Bone', None),
     ('ar15_bolt', (-196.0, 0.0, 0.0), 'Gun_Main_Bone', None),

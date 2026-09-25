@@ -2,7 +2,7 @@
 
 local WEAPON = `WEAPON_AR15`
 local SIGHTS = `COMPONENT_AR15_SIGHTS`
-local HOLO = `COMPONENT_AT_AR15_HOLO`
+local HOLO = `COMPONENT_AT_AR15_SCOPE_HOLO`
 local LASER = `COMPONENT_AT_AR15_LASER`
 
 local LASER_BONE = 'WAPSupp_2'     -- laser attach bone = beam origin (weapon points along +X)

@@ -294,7 +294,7 @@
                   <Default value="true" />
                 </Item>
                 <Item>
-                  <Name>COMPONENT_AT_AR15_HOLO</Name>
+                  <Name>COMPONENT_AT_AR15_SCOPE_HOLO</Name>
                   <Default value="false" />
                 </Item>
               </Components>
