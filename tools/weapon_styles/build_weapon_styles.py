@@ -16,9 +16,11 @@ style per category is installed at a time. Here every style keeps its own dictio
            players) and, for the cover styles, SET_PED_MOTION_IN_COVER_CLIPSET_OVERRIDE
   overlay  the dictionaries played as upper-body loops (idle / walk / run / sprint): the stealth
            styles, and every style when the game does not take the add-on clip sets
-  sprint   the rifle 'sprint:' variants differ from their base style only in the sprint, which the game
-           does not take from the clip set: stream/ktwr_sprint.ycd has it as one upper-body clip per
-           variant, played over the game's sprint (sprint_clips.py)
+
+The rifle packs also have 'sprint' variants of five styles (e.g. 'Low Ready + High Port Sprint'):
+the same style with another sprint clip. The game does not take the sprint from a ped's movement
+clip set (it keeps its own rifle sprint, which is also the sprint of every KTWR base style), so they
+would look the same as their base style; they are left out.
 
 Every animation and sequence gets a new, unique signature (cwconv ycdsig): the styles are edits of the
 same game animations and kept their signatures, which the game uses as cache keys, so with several
@@ -45,8 +47,6 @@ import zipfile
 
 from PIL import Image
 
-import sprint_clips
-
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 DEFAULT_OUT = os.path.join(ROOT, 'fivem', 'weapon_styles')
@@ -57,36 +57,16 @@ DEFAULT_OUT = os.path.join(ROOT, 'fivem', 'weapon_styles')
 RIFLE = [
     ('r01', 'Rifle - M (Low Ready)', 'Low Ready', None,
      'Broń nisko przed sobą, lufa w dół, gotowa do szybkiego podniesienia.', 'Rifle - M (Low Ready)'),
-    ('r02', 'Rifle - M (Low Ready + High Port Sprint)', 'Low Ready', 'sprint: High Port',
-     'Low Ready; w sprincie (Shift) broń pionowo przed klatką.', 'Rifle - M (Low Ready)'),
-    ('r03', 'Rifle - M (Low Ready + Sling Sprint)', 'Low Ready', 'sprint: na pasie',
-     'Low Ready; w sprincie (Shift) broń puszczona na pas.', 'Rifle - M (Low Ready)'),
     ('r04', 'Rifle - M (Standard Low Ready)', 'Standard Low Ready', None,
      'Klasyczne low ready: kolba przy barku, lufa w ziemię przed sobą.', 'Rifle - M (Standard Low Ready)'),
-    ('r05', 'Rifle - M (Standard Low Ready + High Port Sprint)', 'Standard Low Ready', 'sprint: High Port',
-     'Standard Low Ready; w sprincie (Shift) broń pionowo przed klatką.', 'Rifle - M (Standard Low Ready)'),
-    ('r06', 'Rifle - M (Standard Low Ready + Sling Sprint)', 'Standard Low Ready', 'sprint: na pasie',
-     'Standard Low Ready; w sprincie (Shift) broń puszczona na pas.', 'Rifle - M (Standard Low Ready)'),
     ('r07', 'Rifle - M (High Port)', 'High Port', None,
      'Broń pionowo przed klatką, lufa w górę.', 'Rifle - M (High Port)'),
     ('r08', 'Rifle - M (Position SUL)', 'Position SUL', None,
      'Lufa w dół tuż przy ciele — bezpiecznie między ludźmi.', 'Rifle - M (Position SUL)'),
-    ('r09', 'Rifle - M (Position SUL + High Port Sprint)', 'Position SUL', 'sprint: High Port',
-     'Position SUL; w sprincie (Shift) broń pionowo przed klatką.', 'Rifle - M (Position SUL)'),
-    ('r10', 'Rifle - M (Position SUL + Sling Sprint)', 'Position SUL', 'sprint: na pasie',
-     'Position SUL; w sprincie (Shift) broń puszczona na pas.', 'Rifle - M (Position SUL)'),
     ('r11', 'Rifle - M (Relaxed Cradle)', 'Relaxed Cradle', None,
      'Broń luźno w zgięciu rąk, na spokojnie.', 'Rifle - M (Relaxed Cradle)'),
-    ('r12', 'Rifle - M (Relaxed Cradle + High Port Sprint)', 'Relaxed Cradle', 'sprint: High Port',
-     'Relaxed Cradle; w sprincie (Shift) broń pionowo przed klatką.', 'Rifle - M (Relaxed Cradle)'),
-    ('r13', 'Rifle - M (Relaxed Cradle + Sling Sprint)', 'Relaxed Cradle', 'sprint: na pasie',
-     'Relaxed Cradle; w sprincie (Shift) broń puszczona na pas.', 'Rifle - M (Relaxed Cradle)'),
     ('r14', 'Rifle - M (Sling Relaxed)', 'Sling Relaxed', None,
      'Broń na pasie, dłonie luźno na broni.', 'Rifle - M (Sling Relaxed)'),
-    ('r15', 'Rifle - M (Sling Relaxed + High Port Sprint)', 'Sling Relaxed', 'sprint: High Port',
-     'Sling Relaxed; w sprincie (Shift) broń pionowo przed klatką.', 'Rifle - M (Sling Relaxed)'),
-    ('r16', 'Rifle - M (Sling Relaxed + Sling Sprint)', 'Sling Relaxed', 'sprint: na pasie',
-     'Sling Relaxed; w sprincie (Shift) broń puszczona na pas.', 'Rifle - M (Sling Relaxed)'),
     ('r17', 'Rifle - M (Sling Down)', 'Sling Down', None,
      'Broń zwisa na pasie lufą w dół, ręce wolne.', 'Rifle - M (Sling Down)'),
     ('r18', 'Rifle - M (Sling High)', 'Sling High', None,
@@ -369,7 +349,6 @@ def main():
         return new
 
     catalog = []
-    sprint_src = {}                           # 'sprint:' variant -> its KTWR dictionary
     for cat, label, hint, styles, dict_file, kind in CATEGORIES:
         entries = []
         for sid, pkg, name, variant, desc, preview in styles:
@@ -390,9 +369,6 @@ def main():
                     clipsets.get(d, ch)
                 st['clips'] = {'idle': 'idle', 'walk': 'walk', 'run': 'run',
                                'sprint': 'sprint' if cat == 'rifle' else 'run'}
-                if cat == 'rifle' and variant and variant.startswith('sprint:'):
-                    st['sprint'] = sid            # its clip in stream/ktwr_sprint.ycd
-                    sprint_src[sid] = dicts[pkg][dict_file]
             elif kind == 'cover':
                 for ch in chain_set('pistol', 3):
                     clipsets.get(d, ch)
@@ -400,10 +376,6 @@ def main():
                 st['clips'] = {'idle': 'idle', 'walk': 'walk', 'run': 'run', 'sprint': 'run'}
             entries.append(st)
         catalog.append((cat, label, hint, kind, entries))
-
-    base_rifle = next(pkg for sid, pkg, *_x in RIFLE if sid == 'r01')
-    sprint_clips.build(cw, sprint_src, dicts[base_rifle]['weapons@rifle@.ycd'],
-                       os.path.join(out, 'stream', sprint_clips.DICT + '.ycd'), 'weapon_styles/' + sprint_clips.DICT)
 
     test_clipset = clipsets.get('ktwr_r01', weapons['WEAPON_CARBINERIFLE'][1])
     write_xml(clipsets.xml(), os.path.join(out, 'meta', 'clip_sets.xml'),
@@ -414,7 +386,6 @@ def main():
     L = ['-- generated by tools/weapon_styles/build_weapon_styles.py; do not edit',
          'Catalog = {',
          f'    testClipSet = {lua_str(test_clipset)},',
-         f'    sprintDict = {lua_str(sprint_clips.DICT)},     -- the \'sprint:\' variants\' sprint, clip = style.sprint',
          '    categories = {']
     for cat, label, hint, kind, entries in catalog:
         L.append(f'        {{ key = {lua_str(cat)}, label = {lua_str(label)}, hint = {lua_str(hint)}, kind = {lua_str(kind)}, styles = {{')
@@ -423,7 +394,7 @@ def main():
             if st.get('variant'):
                 parts.append(f'variant = {lua_str(st["variant"])}')
             parts.append(f'desc = {lua_str(st["desc"])}')
-            for k in ('img', 'dict', 'sprint'):
+            for k in ('img', 'dict'):
                 if st.get(k):
                     parts.append(f'{k} = {lua_str(st[k])}')
             if st.get('clips'):
@@ -446,10 +417,6 @@ def main():
     L.append('}')
     with open(os.path.join(out, 'shared', 'catalog.lua'), 'w', encoding='utf-8', newline='\n') as f:
         f.write('\n'.join(L) + '\n')
-
-    icon = os.path.join(ROOT, 'fivem', 'ox_inventory', 'web', 'images', 'WEAPON_AR15.png')
-    if os.path.exists(icon):                  # menu card of the AR-15's own low ready
-        shutil.copy(icon, os.path.join(out, 'html', 'img', 'ar15.png'))
 
     n_sigs = check_signatures(os.path.join(out, 'stream'), cw)
     n_dicts = len(os.listdir(os.path.join(out, 'stream')))

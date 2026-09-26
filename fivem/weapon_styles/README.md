@@ -10,7 +10,7 @@ inni gracze.
 1. Folder `weapon_styles` do `resources/` serwera, w `server.cfg`:
 
    ```
-   ensure weapon_ar15        # jeśli masz AR-15 (przed weapon_styles)
+   ensure weapon_ar15        # jeśli masz AR-15
    ensure weapon_styles
    ```
 
@@ -26,16 +26,15 @@ z jego paczek (niżej: *Budowanie*).
 
 | Zakładka | Dotyczy | Style |
 |---|---|---|
-| Karabin | karabiny, karabinki, PM-y, strzelby, AR-15 | Low Ready, Standard Low Ready, Position SUL, Relaxed Cradle, Sling Relaxed (każdy także w wariancie sprintu High Port / na pasie), High Port, Sling Down, Sling High — 18 |
+| Karabin | karabiny, karabinki, PM-y, strzelby, AR-15 | Low Ready, Standard Low Ready, High Port, Position SUL, Relaxed Cradle, Sling Relaxed, Sling Down, Sling High — 8 |
 | Pistolet | pistolety, rewolwery, Micro SMG, paralizator | Low Ready (+ bieg wysoko), Compressed Low Ready (+ bieg jedną ręką), Chest Ready (+ oburącz, + oburącz z niskim biegiem), Temple Index (+ bieg wysoko / nisko), Position SUL, Belt Relaxed — 12 |
 | Karabin — skradanie | tryb skradania (Ctrl) z karabinem | Low Ready, High Ready |
 | Pistolet — skradanie | tryb skradania z pistoletem | Compressed Ready, High Ready, Position SUL (+ chód Compressed), Compressed Ready (+ chód SUL), Calm Down! (2 warianty) |
 | Bez broni — skradanie | skradanie bez broni | Holster Ready |
 | Pistolet — osłona | za osłoną z pistoletem | Temple Index, Position SUL |
 
-W każdej zakładce jest też **GTA** (animacje z gry), a w zakładce karabinów **AR-15 low ready**:
-własne low ready z zasobu `weapon_ar15` (pozostałe karabiny zostają wtedy jak w GTA). To jest
-domyślny wybór karabinu, więc bez otwierania menu AR-15 zachowuje się tak jak wcześniej.
+W każdej zakładce jest też **GTA** (animacje z gry) — to wybór domyślny. Karty „AR-15 low ready”
+od 1.6 nie ma; kto miał ją wybraną, dostaje GTA.
 
 ## Jak to działa
 
@@ -47,20 +46,12 @@ domyślny wybór karabinu, więc bez otwierania menu AR-15 zachowuje się tak ja
   a gra sama wysyła go innym graczom (węzeł synchronizacji ruchu postaci). Styl osłony z pistoletem
   idzie przez `SET_PED_MOTION_IN_COVER_CLIPSET_OVERRIDE` i nie jest synchronizowany przez grę, więc
   każdy klient zakłada go graczom w pobliżu. Style skradania są nakładką (niżej).
-- **Sprint z karabinem**: w sprincie gra zawsze gra własny sprint z karabinem, niezależnie od
-  zestawu klipów stylu. Style bazowe KTWR mają dokładnie ten sam sprint (wszystkie siedem takie
-  same), więc u nich nic nie trzeba robić i styl zostaje na postaci także w sprincie — przejścia
-  bieg ↔ sprint robi sama gra. Warianty „sprint: High Port / na pasie” różnią się od stylu
-  bazowego wyłącznie sprintem, który w singlu rusza tylko prawą ręką (lewa pracuje jak w zwykłym
-  sprincie bez broni). Tu ich sprint jest w `stream/ktwr_sprint.ycd` jako jeden klip na wariant:
-  prawa ręka z wariantu bez zmian, lewa to wahadło ręki w sprincie (do przodu przy lądowaniu
-  prawej stopy, do tyłu przy lewej). Skrypt gra go nakładką na górną część ciała tylko na czas
-  sprintu, zsynchronizowaną z krokami (flaga `AF_TAG_SYNC_CONTINUOUS`, znaczniki kroków w klipach
-  KTWR), z płynnym wejściem i wyjściem (`Config.RifleSprintOverlay`). Zwykły bieg (bez Shift) jest
-  w wariantach taki sam jak w stylu bazowym.
-- Do 1.4 skrypt na czas sprintu zdejmował styl z postaci i zakładał go z powrotem — gra zmienia
-  zestaw klipów bez przejścia, więc na początku i końcu sprintu postać przeskakiwała między pozami,
-  a nakładka sprintu szła własnym rytmem, obok kroków („telepanie”). Od 1.5 tego nie ma.
+- **Sprint z karabinem** (Shift): gra zawsze gra własny sprint z karabinem, niezależnie od zestawu
+  klipów stylu, a style KTWR mają dokładnie ten sam sprint. Styl zostaje więc na postaci także w
+  sprincie, a przejścia bieg ↔ sprint robi sama gra. Paczka karabinów KTWR ma jeszcze warianty
+  „+ High Port Sprint” / „+ Sling Sprint” (ten sam styl z innym sprintem) — tu ich nie ma: gra i
+  tak by ich sprintu nie zagrała, a dogrywanie go skryptem (1.3, 1.4) dawało skoki i dziwne ręce.
+  Kto miał taki wariant zapisany, dostaje jego styl bazowy.
 - **Nakładka** — animacje stylu na górnej części ciała (`TaskPlayAnim`: stanie, chód, bieg,
   sprint), synchronizowane przez grę. Tak działają style skradania, a w **trybie skryptowym**
   wszystkie style. Celowanie, strzał, przeładowanie, pojazd, osłona, pierwsza osoba i animacje
@@ -81,8 +72,9 @@ domyślny wybór karabinu, więc bez otwierania menu AR-15 zachowuje się tak ja
 - Każda broń z grup pistolet / karabin (także add-on) dostaje styl natywnie: bronie z gry i
   **AR-15** (`WEAPON_AR15`, łańcuch jak Carbine Rifle) oraz **Glock 17** (`WEAPON_GLOCK17`,
   łańcuch jak Pistol) mają własne wpisy, pozostałe dostają łańcuch Carbine Rifle / Pistol.
-- AR-15: gdy wybrany jest styl KTWR, low ready z `weapon_ar15` się wyłącza; przeładowanie z
-  wypadającym magazynkiem działa z każdym stylem.
+- AR-15: przy działającym `weapon_styles` trzyma się jak wybrany styl karabinu (albo jak w GTA),
+  a własne low ready z `weapon_ar15` jest wyłączone; przeładowanie z wypadającym magazynkiem
+  działa z każdym stylem.
 - Jeśli jakaś broń ma własny skrypt trzymania i ma go zachować, dopisz ją do
   `Config.ExcludedWeapons`.
 
@@ -101,8 +93,7 @@ Export: `exports.weapon_styles:GetStyles()`.
 |---|---|---|
 | `Command` | `'style'` | komenda menu |
 | `Mode` | `'auto'` | `'auto'`, `'native'`, `'overlay'` |
-| `Defaults` | karabin `'ar15'`, reszta `'default'` | wybór gracza przed pierwszym otwarciem menu |
-| `RifleSprintOverlay` | `true` | sprint wariantów „sprint: High Port / na pasie” (`false` = w sprincie sprint z gry, jak w stylach bazowych) |
+| `Defaults` | wszędzie `'default'` (GTA) | wybór gracza przed pierwszym otwarciem menu |
 | `SyncDistance` | `150.0` | zasięg, w którym klient ładuje style innych graczy (tryb natywny) |
 | `ExcludedWeapons` | `{}` | bronie, które zostają przy swoich animacjach, np. `{ 'WEAPON_GLOCK17' }` |
 | `HiddenStyles` | `{}` | style ukryte w menu, np. `{ 'r17', 'p12' }` |
@@ -110,16 +101,14 @@ Export: `exports.weapon_styles:GetStyles()`.
 ## Budowanie z paczek KTWR
 
 ```bash
-pip install pillow numpy
+pip install pillow
 python3 tools/weapon_styles/build_weapon_styles.py --packs <folder z paczkami KTWR .zip>
 ```
 
 Potrzebne paczki: `01. KTWR BASE (Required)`, `Rifle (Movement) Pack`, `Pistol (Movement) Pack`,
 `Pistol (Cover) Pack`. Generator zapisuje `stream/`, `meta/clip_sets.xml`, `shared/catalog.lua` i
 `html/img/` (słowniki KTWR pod nowymi nazwami, z nowymi sygnaturami animacji — niżej), a wynik jest
-powtarzalny; na końcu sprawdza, że żadna sygnatura się nie powtarza. `stream/ktwr_sprint.ycd`
-(sprint wariantów) składa `tools/weapon_styles/sprint_clips.py` i sprawdza, że prawa ręka jest
-taka jak w wariancie, a lewa wychodzi przy kroku do przodu i wraca do tyłu. Numpy jest potrzebny.
+powtarzalny; na końcu sprawdza, że żadna sygnatura się nie powtarza.
 Kolejna broń add-on z własnym łańcuchem: `--addon WEAPON_NAZWA=rifle:WEAPON_CARBINERIFLE`.
 
 ## Co jest sprawdzone, a co wymaga testu w grze
@@ -135,10 +124,10 @@ Kolejna broń add-on z własnym łańcuchem: `--addon WEAPON_NAZWA=rifle:WEAPON_
   Od 1.2 każda animacja i sekwencja ma własną sygnaturę (`cwconv ycdsig`: zmienione są tylko te
   pola, reszta plików bajt w bajt jak u autora). Animacje AR-15 też (Sollumz liczy sygnaturę z
   nazwy animacji, np. `reload`, a takie nazwy mają też inne zasoby).
-- Z nagrań z gry (1.3 i 1.4): w sprincie z wariantem lewa dłoń wisiała przed klatką z otwartą
-  ręką. To lewa ręka ze sprintu gry (trzyma łoże karabinu wysuniętego do przodu), który gra puszcza
-  w sprincie niezależnie od stylu — tak samo przy stylu założonym (1.3) i zdjętym (1.4). Do tego 1.4
-  przeskakiwała na początku i końcu sprintu i telepała się. Poprawione w 1.5 (wyżej).
+- Z nagrań z gry (1.3 i 1.4): w sprincie z wariantem sprintu lewa dłoń wisiała przed klatką — to
+  lewa ręka ze sprintu gry, który gra puszcza niezależnie od stylu; 1.4 do tego zdejmowała styl na
+  czas sprintu, a gra zmienia zestaw klipów bez przejścia, więc postać przeskakiwała między pozami.
+  Od 1.5 styl zostaje w sprincie, od 1.6 wariantów sprintu nie ma.
 - Sprawdzone tutaj: skrypty klienta i serwera przeszły symulowane scenariusze na zastępczych
   natywkach (zestaw klipów tylko po załadowaniu i tylko zdefiniowany w `clip_sets.xml`, ponowne
   założenie po zmianie broni, pojeździe i śmierci, osłona, skradanie, pierwsza osoba, kobieca

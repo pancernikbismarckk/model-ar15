@@ -5,9 +5,7 @@
 --          game syncs it to the other players) and, with a pistol, in place of its cover clip set
 --          (SET_PED_MOTION_IN_COVER_CLIPSET_OVERRIDE, set here on the other players too). It stays
 --          on in the sprint too: the game sprints with its own rifle sprint, the same one the KTWR
---          base styles have
--- sprint   the rifle 'sprint:' variants differ only in the sprint, so theirs is played over the
---          game's (Catalog.sprintDict: both arms, in step with the legs)
+--          styles have
 -- overlay  the style's idle / walk / run / sprint clips on the upper body (TaskPlayAnim, synced by
 --          the game): the stealth styles, and every style when the game does not take the add-on
 --          clip sets (overlay mode)
@@ -30,7 +28,6 @@ for _, id in ipairs(Config.HiddenStyles or {}) do hidden[id] = true end
 
 local FEMALE = `mp_f_freemode_01`
 local OVERLAY_FLAGS = 1 + 16 + 32           -- loop, upper body only, player keeps control
-local SPRINT_FLAGS = OVERLAY_FLAGS + 65536  -- ... kept in step with the legs (the clips' foot tags)
 local GROUPS = {
     [`GROUP_PISTOL`] = 'pistol', [`GROUP_STUNGUN`] = 'pistol',
     [`GROUP_RIFLE`] = 'rifle', [`GROUP_SMG`] = 'rifle', [`GROUP_MG`] = 'rifle',
@@ -47,19 +44,24 @@ local function style(cat, id)
 end
 
 local function validId(key, id)
-    return id == 'default' or (key == 'rifle' and id == 'ar15') or (CATS[key] and CATS[key].styles[id] ~= nil)
+    return id == 'default' or (CATS[key] and CATS[key].styles[id] ~= nil)
 end
 
 -- ------------------------------------------------------------------------------------------------
 -- choices
 -- ------------------------------------------------------------------------------------------------
 local KVP = 'weapon_styles'
+-- the rifle "sprint:" variants are gone since 1.6: a saved one becomes its base style (a saved 'ar15',
+-- the AR-15's own low ready, is gone too and falls back to the default)
+local REMOVED = { r02 = 'r01', r03 = 'r01', r05 = 'r04', r06 = 'r04', r09 = 'r08', r10 = 'r08',
+    r12 = 'r11', r13 = 'r11', r15 = 'r14', r16 = 'r14' }
 
 local function loadPrefs()
     local ok, saved = pcall(json.decode, GetResourceKvpString(KVP) or '')
     saved = ok and type(saved) == 'table' and saved or {}
     for _, key in ipairs(ORDER) do
         local id = saved[key]
+        if key == 'rifle' and REMOVED[id] then id = REMOVED[id] end
         prefs[key] = (type(id) == 'string' and validId(key, id)) and id or (Config.Defaults[key] or 'default')
     end
 end
@@ -190,28 +192,19 @@ local function overlayAllowed(ped)
         and not IsPedPerformingMeleeAction(ped) and not IsPedReloading(ped)
 end
 
--- the rifle sprint of a 'sprint:' variant (the game's own sprint is the base styles' one)
-local function sprintClip(st)
-    return st and st.sprint and Config.RifleSprintOverlay ~= false and st.sprint or nil
-end
-
--- what the overlay plays: dict, clip, flags, blend in, blend out (nil: nothing)
 local function overlayTarget(ped, sprint)
     local kind = weaponKind(GetSelectedPedWeapon(ped))
     if not kind then return nil end
-    local move = sprint and 'sprint' or IsPedRunning(ped) and 'run'
-        or IsPedWalking(ped) and 'walk' or 'idle'
     local st
     if GetPedStealthMovement(ped) then
         st = style(kind .. '_stealth', prefs[kind .. '_stealth'])
-    elseif kind ~= 'unarmed' then
+    elseif kind ~= 'unarmed' and not nativeMode then    -- native mode: the game plays the style
         st = style(kind, prefs[kind])
-        local clip = move == 'sprint' and sprintClip(st)
-        if clip then return Catalog.sprintDict, clip, SPRINT_FLAGS, 5.0, 4.0 end
-        if nativeMode then st = nil end     -- the game plays the style
     end
     if not st or not st.clips then return nil end
-    return st.dict, st.clips[move], OVERLAY_FLAGS, 3.0, 3.0
+    local move = sprint and 'sprint' or IsPedRunning(ped) and 'run'
+        or IsPedWalking(ped) and 'walk' or 'idle'
+    return st.dict, st.clips[move]
 end
 
 local function otherAnim(ped)
@@ -222,7 +215,7 @@ end
 local function stopOverlay(ped, speed)
     if overlay then
         if IsEntityPlayingAnim(ped, overlay.dict, overlay.clip, 3) then
-            StopAnimTask(ped, overlay.dict, overlay.clip, speed or overlay.blendOut)
+            StopAnimTask(ped, overlay.dict, overlay.clip, speed)
         end
         overlay = nil
     end
@@ -230,10 +223,10 @@ end
 
 local function tickOverlay(ped, sprint)
     local aim = aiming(ped)
-    local dict, clip, flags, blendIn, blendOut
-    if not aim and overlayAllowed(ped) then dict, clip, flags, blendIn, blendOut = overlayTarget(ped, sprint) end
+    local dict, clip
+    if not aim and overlayAllowed(ped) then dict, clip = overlayTarget(ped, sprint) end
     if not dict then
-        stopOverlay(ped, aim and 8.0 or nil)
+        stopOverlay(ped, aim and 8.0 or 3.0)
         return
     end
     local playing = overlay and overlay.dict == dict and overlay.clip == clip
@@ -243,17 +236,9 @@ local function tickOverlay(ped, sprint)
         RequestAnimDict(dict)
         return
     end
-    TaskPlayAnim(ped, dict, clip, blendIn, blendOut, -1, flags, 0.0, false, false, false)
-    overlay = { dict = dict, clip = clip, blendOut = blendOut }
+    TaskPlayAnim(ped, dict, clip, 3.0, 3.0, -1, OVERLAY_FLAGS, 0.0, false, false, false)
+    overlay = { dict = dict, clip = clip }
     lastPlay = GetGameTimer()
-end
-
--- the variants' sprint clips streamed in before the sprint (yours and the other players')
-local function streamSprint(p, weapon)
-    if weaponKind(weapon) == 'rifle' and sprintClip(style('rifle', p.rifle))
-        and not HasAnimDictLoaded(Catalog.sprintDict) then
-        RequestAnimDict(Catalog.sprintDict)
-    end
 end
 
 -- ------------------------------------------------------------------------------------------------
@@ -267,12 +252,6 @@ local function menuData()
     for _, key in ipairs(ORDER) do
         local c = CATS[key]
         local list = { { id = 'default', label = 'GTA', variant = 'bez zmian', desc = 'Animacje z gry.' } }
-        if key == 'rifle' then
-            list[#list + 1] = { id = 'ar15', label = 'AR-15 low ready', variant = 'tylko AR-15',
-                desc = 'Low ready z zasobu weapon_ar15; pozostałe karabiny jak w GTA.', img = 'img/ar15.png',
-                disabled = GetResourceState('weapon_ar15') ~= 'started' or nil,
-                why = 'Zasób weapon_ar15 nie jest uruchomiony.' }
-        end
         for _, st in ipairs(c.list) do
             if not hidden[st.id] then
                 list[#list + 1] = { id = st.id, label = st.label, variant = st.variant, desc = st.desc, img = st.img,
@@ -320,8 +299,8 @@ end)
 -- ------------------------------------------------------------------------------------------------
 -- loops
 -- ------------------------------------------------------------------------------------------------
--- sprinting, held for a moment after the last sprinting frame, so the sprint clip is not started and
--- stopped again where a sprint starts and ends
+-- sprinting, held for a moment after the last sprinting frame, so the overlay's sprint clip is not
+-- started and stopped again where a sprint starts and ends
 local lastSprintAt = -10000
 
 local function sprinting(ped)
@@ -343,7 +322,6 @@ CreateThread(function()
         local guard = menuOpen or GetGameTimer() - menuClosedAt < 500
         local busy = guard or kind == 'rifle' or kind == 'pistol' or (kind == 'unarmed' and GetPedStealthMovement(ped))
         applyMine(ped)
-        streamSprint(prefs, GetSelectedPedWeapon(ped))
         tickOverlay(ped, sprinting(ped))
         if menuOpen then
             -- the mouse is on the menu: no looking around, shooting or pause menu
@@ -377,7 +355,6 @@ CreateThread(function()
                     if type(p) == 'table' then
                         local motion, cover = nativeTargets(ped, p, false)
                         if motion then clipSetReady(motion) end
-                        streamSprint(p, GetSelectedPedWeapon(ped))
                         local st = others[ped]
                         if not st then
                             st = { cover = false }

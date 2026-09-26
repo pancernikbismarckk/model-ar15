@@ -6,7 +6,6 @@ for _, cat in ipairs(Catalog.categories) do
     valid[cat.key] = { default = true }
     for _, st in ipairs(cat.styles) do valid[cat.key][st.id] = true end
 end
-valid.rifle.ar15 = true
 
 local INTERVAL = 150        -- ms between two state bag updates of one player
 local last, pending = {}, {}

@@ -9,15 +9,9 @@ Config.Command = 'style'
 -- (the stealth styles are always played by the script)
 Config.Mode = 'auto'
 
--- the rifle sprint: the game sprints with its own rifle sprint whatever the style (the KTWR base
--- styles have that same sprint). The "sprint: High Port / na pasie" variants get theirs played over
--- it on the upper body while sprinting, in step with the legs; false = the game's sprint for them too
-Config.RifleSprintOverlay = true
-
--- a player's choice before they open the menu for the first time
--- (rifle 'ar15' = the AR-15's own low ready from weapon_ar15; other rifles keep the GTA look)
+-- a player's choice before they open the menu for the first time ('default' = the game's animations)
 Config.Defaults = {
-    rifle = 'ar15',
+    rifle = 'default',
     pistol = 'default',
     rifle_stealth = 'default',
     pistol_stealth = 'default',
