@@ -9,10 +9,9 @@ Config.Command = 'style'
 -- (the stealth styles are always played by the script)
 Config.Mode = 'auto'
 
--- native mode: the game does not play the style's sprint clip (it keeps the style's two-handed hold
--- while sprinting), so for the sprint the style comes off and the script plays the style's sprint on
--- the upper body over the game's own (the "sprint: High Port / na pasie" variants need this);
--- false = no sprint handling
+-- the rifle sprint: the game sprints with its own rifle sprint whatever the style (the KTWR base
+-- styles have that same sprint). The "sprint: High Port / na pasie" variants get theirs played over
+-- it on the upper body while sprinting, in step with the legs; false = the game's sprint for them too
 Config.RifleSprintOverlay = true
 
 -- a player's choice before they open the menu for the first time

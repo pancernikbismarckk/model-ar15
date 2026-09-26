@@ -39,20 +39,28 @@ domyślny wybór karabinu, więc bez otwierania menu AR-15 zachowuje się tak ja
 
 ## Jak to działa
 
-- **Tryb natywny** — karabin i pistolet: gra sama odtwarza styl (stanie, chód, bieg, sprint,
-  obroty, przejścia do celowania), tak jak w KTWR. Każdy styl ma własny słownik animacji
+- **Tryb natywny** — karabin i pistolet: gra sama odtwarza styl (stanie, chód, bieg, obroty,
+  przejścia do celowania), tak jak w KTWR. Każdy styl ma własny słownik animacji
   (`stream/ktwr_*.ycd`) i zestawy klipów (`meta/clip_sets.xml`), w których ten słownik stoi przed
   łańcuchem klipów, jaki KTWR BASE daje danej broni (np. `ktwr_r08@weapons@rifle@hi@assault_rifle`).
   Skrypt zakłada go na postać natywką `SET_PED_WEAPON_MOVEMENT_CLIPSET` (zestaw ruchu z bronią),
   a gra sama wysyła go innym graczom (węzeł synchronizacji ruchu postaci). Styl osłony z pistoletem
   idzie przez `SET_PED_MOTION_IN_COVER_CLIPSET_OVERRIDE` i nie jest synchronizowany przez grę, więc
   każdy klient zakłada go graczom w pobliżu. Style skradania są nakładką (niżej).
-- **Sprint z karabinem**: gra nie bierze klipu sprintu ze stylu, tylko zostawia w sprincie trzymanie
-  stylu oburącz. Warianty „sprint: High Port / na pasie” różnią się od stylu bazowego wyłącznie tym
-  klipem (rusza tylko prawą ręką, lewa ma pracować jak w zwykłym sprincie), więc na czas sprintu
-  styl schodzi z postaci (pod spodem jest sprint z gry) i skrypt gra sprint stylu nakładką; po
-  sprincie styl wraca (`Config.RifleSprintOverlay`). Zwykły bieg (bez Shift) jest w wariantach taki
-  sam jak w stylu bazowym.
+- **Sprint z karabinem**: w sprincie gra zawsze gra własny sprint z karabinem, niezależnie od
+  zestawu klipów stylu. Style bazowe KTWR mają dokładnie ten sam sprint (wszystkie siedem takie
+  same), więc u nich nic nie trzeba robić i styl zostaje na postaci także w sprincie — przejścia
+  bieg ↔ sprint robi sama gra. Warianty „sprint: High Port / na pasie” różnią się od stylu
+  bazowego wyłącznie sprintem, który w singlu rusza tylko prawą ręką (lewa pracuje jak w zwykłym
+  sprincie bez broni). Tu ich sprint jest w `stream/ktwr_sprint.ycd` jako jeden klip na wariant:
+  prawa ręka z wariantu bez zmian, lewa to wahadło ręki w sprincie (do przodu przy lądowaniu
+  prawej stopy, do tyłu przy lewej). Skrypt gra go nakładką na górną część ciała tylko na czas
+  sprintu, zsynchronizowaną z krokami (flaga `AF_TAG_SYNC_CONTINUOUS`, znaczniki kroków w klipach
+  KTWR), z płynnym wejściem i wyjściem (`Config.RifleSprintOverlay`). Zwykły bieg (bez Shift) jest
+  w wariantach taki sam jak w stylu bazowym.
+- Do 1.4 skrypt na czas sprintu zdejmował styl z postaci i zakładał go z powrotem — gra zmienia
+  zestaw klipów bez przejścia, więc na początku i końcu sprintu postać przeskakiwała między pozami,
+  a nakładka sprintu szła własnym rytmem, obok kroków („telepanie”). Od 1.5 tego nie ma.
 - **Nakładka** — animacje stylu na górnej części ciała (`TaskPlayAnim`: stanie, chód, bieg,
   sprint), synchronizowane przez grę. Tak działają style skradania, a w **trybie skryptowym**
   wszystkie style. Celowanie, strzał, przeładowanie, pojazd, osłona, pierwsza osoba i animacje
@@ -94,7 +102,7 @@ Export: `exports.weapon_styles:GetStyles()`.
 | `Command` | `'style'` | komenda menu |
 | `Mode` | `'auto'` | `'auto'`, `'native'`, `'overlay'` |
 | `Defaults` | karabin `'ar15'`, reszta `'default'` | wybór gracza przed pierwszym otwarciem menu |
-| `RifleSprintOverlay` | `true` | tryb natywny: w sprincie z karabinem styl schodzi, a jego sprint gra nakładka (`false` = bez tego) |
+| `RifleSprintOverlay` | `true` | sprint wariantów „sprint: High Port / na pasie” (`false` = w sprincie sprint z gry, jak w stylach bazowych) |
 | `SyncDistance` | `150.0` | zasięg, w którym klient ładuje style innych graczy (tryb natywny) |
 | `ExcludedWeapons` | `{}` | bronie, które zostają przy swoich animacjach, np. `{ 'WEAPON_GLOCK17' }` |
 | `HiddenStyles` | `{}` | style ukryte w menu, np. `{ 'r17', 'p12' }` |
@@ -102,14 +110,16 @@ Export: `exports.weapon_styles:GetStyles()`.
 ## Budowanie z paczek KTWR
 
 ```bash
-pip install pillow
+pip install pillow numpy
 python3 tools/weapon_styles/build_weapon_styles.py --packs <folder z paczkami KTWR .zip>
 ```
 
 Potrzebne paczki: `01. KTWR BASE (Required)`, `Rifle (Movement) Pack`, `Pistol (Movement) Pack`,
 `Pistol (Cover) Pack`. Generator zapisuje `stream/`, `meta/clip_sets.xml`, `shared/catalog.lua` i
 `html/img/` (słowniki KTWR pod nowymi nazwami, z nowymi sygnaturami animacji — niżej), a wynik jest
-powtarzalny; na końcu sprawdza, że żadna sygnatura się nie powtarza.
+powtarzalny; na końcu sprawdza, że żadna sygnatura się nie powtarza. `stream/ktwr_sprint.ycd`
+(sprint wariantów) składa `tools/weapon_styles/sprint_clips.py` i sprawdza, że prawa ręka jest
+taka jak w wariancie, a lewa wychodzi przy kroku do przodu i wraca do tyłu. Numpy jest potrzebny.
 Kolejna broń add-on z własnym łańcuchem: `--addon WEAPON_NAZWA=rifle:WEAPON_CARBINERIFLE`.
 
 ## Co jest sprawdzone, a co wymaga testu w grze
@@ -125,6 +135,10 @@ Kolejna broń add-on z własnym łańcuchem: `--addon WEAPON_NAZWA=rifle:WEAPON_
   Od 1.2 każda animacja i sekwencja ma własną sygnaturę (`cwconv ycdsig`: zmienione są tylko te
   pola, reszta plików bajt w bajt jak u autora). Animacje AR-15 też (Sollumz liczy sygnaturę z
   nazwy animacji, np. `reload`, a takie nazwy mają też inne zasoby).
+- Z nagrań z gry (1.3 i 1.4): w sprincie z wariantem lewa dłoń wisiała przed klatką z otwartą
+  ręką. To lewa ręka ze sprintu gry (trzyma łoże karabinu wysuniętego do przodu), który gra puszcza
+  w sprincie niezależnie od stylu — tak samo przy stylu założonym (1.3) i zdjętym (1.4). Do tego 1.4
+  przeskakiwała na początku i końcu sprintu i telepała się. Poprawione w 1.5 (wyżej).
 - Sprawdzone tutaj: skrypty klienta i serwera przeszły symulowane scenariusze na zastępczych
   natywkach (zestaw klipów tylko po załadowaniu i tylko zdefiniowany w `clip_sets.xml`, ponowne
   założenie po zmianie broni, pojeździe i śmierci, osłona, skradanie, pierwsza osoba, kobieca

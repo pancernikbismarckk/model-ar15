@@ -1,9 +1,13 @@
 -- weapon_styles (client): the /style menu and the chosen styles on your ped.
 --
 -- native   the style's clip set in place of the weapon's own movement clip set
---          (SET_PED_WEAPON_MOVEMENT_CLIPSET: standing, walking, running, sprinting, turns, idle <->
---          aim; the game syncs it to the other players) and, with a pistol, in place of its cover
---          clip set (SET_PED_MOTION_IN_COVER_CLIPSET_OVERRIDE, set here on the other players too)
+--          (SET_PED_WEAPON_MOVEMENT_CLIPSET: standing, walking, running, turns, idle <-> aim; the
+--          game syncs it to the other players) and, with a pistol, in place of its cover clip set
+--          (SET_PED_MOTION_IN_COVER_CLIPSET_OVERRIDE, set here on the other players too). It stays
+--          on in the sprint too: the game sprints with its own rifle sprint, the same one the KTWR
+--          base styles have
+-- sprint   the rifle 'sprint:' variants differ only in the sprint, so theirs is played over the
+--          game's (Catalog.sprintDict: both arms, in step with the legs)
 -- overlay  the style's idle / walk / run / sprint clips on the upper body (TaskPlayAnim, synced by
 --          the game): the stealth styles, and every style when the game does not take the add-on
 --          clip sets (overlay mode)
@@ -26,6 +30,7 @@ for _, id in ipairs(Config.HiddenStyles or {}) do hidden[id] = true end
 
 local FEMALE = `mp_f_freemode_01`
 local OVERLAY_FLAGS = 1 + 16 + 32           -- loop, upper body only, player keeps control
+local SPRINT_FLAGS = OVERLAY_FLAGS + 65536  -- ... kept in step with the legs (the clips' foot tags)
 local GROUPS = {
     [`GROUP_PISTOL`] = 'pistol', [`GROUP_STUNGUN`] = 'pistol',
     [`GROUP_RIFLE`] = 'rifle', [`GROUP_SMG`] = 'rifle', [`GROUP_MG`] = 'rifle',
@@ -92,15 +97,12 @@ local function clipSetReady(name)
 end
 
 -- the movement and cover clip sets a ped should have (false = the game's own)
-local function nativeTargets(ped, p, isMe, sprint)
+local function nativeTargets(ped, p, isMe)
     local w = weaponInfo(GetSelectedPedWeapon(ped))
     -- your own first person view keeps the game's first person animations
     if not w or (isMe and GetFollowPedCamViewMode() == 4) then return false, false end
     local st = style(w[1], p[w[1]])
     local motion = st and (st.dict .. '@' .. (GetEntityModel(ped) == FEMALE and w[3] or w[2])) or false
-    -- sprinting with a rifle: the game's own sprint underneath (the left arm free, as in single
-    -- player) and the style's sprint on top as the overlay (see overlayTarget)
-    if sprint and w[1] == 'rifle' and Config.RifleSprintOverlay ~= false then motion = false end
     local cover = false
     if w[1] == 'pistol' then
         local cs = style('pistol_cover', p.pistol_cover)
@@ -136,10 +138,10 @@ end
 
 local mine = { ped = 0, weapon = 0, motion = false, cover = false, force = false, settled = true }
 
-local function applyMine(ped, sprint)
+local function applyMine(ped)
     if ped ~= mine.ped then mine = { ped = ped, weapon = 0, motion = false, cover = false, force = false, settled = true } end
     local motion, cover = false, false
-    if nativeMode then motion, cover = nativeTargets(ped, prefs, true, sprint) end
+    if nativeMode then motion, cover = nativeTargets(ped, prefs, true) end
     -- set it again after a weapon change, a weapon swap, death, a vehicle or a ragdoll
     local weapon = GetSelectedPedWeapon(ped)
     local settled = not IsPedSwappingWeapon(ped) and not IsEntityDead(ped) and not IsPedInAnyVehicle(ped, false)
@@ -188,6 +190,12 @@ local function overlayAllowed(ped)
         and not IsPedPerformingMeleeAction(ped) and not IsPedReloading(ped)
 end
 
+-- the rifle sprint of a 'sprint:' variant (the game's own sprint is the base styles' one)
+local function sprintClip(st)
+    return st and st.sprint and Config.RifleSprintOverlay ~= false and st.sprint or nil
+end
+
+-- what the overlay plays: dict, clip, flags, blend in, blend out (nil: nothing)
 local function overlayTarget(ped, sprint)
     local kind = weaponKind(GetSelectedPedWeapon(ped))
     if not kind then return nil end
@@ -198,16 +206,12 @@ local function overlayTarget(ped, sprint)
         st = style(kind .. '_stealth', prefs[kind .. '_stealth'])
     elseif kind ~= 'unarmed' then
         st = style(kind, prefs[kind])
-        -- native mode: the game plays the style, except the rifle sprint: it does not take the
-        -- style's sprint clip (the "sprint: High Port / na pasie" variants are only that clip, the
-        -- right arm) and keeps the style's two-handed hold, so the style comes off for the sprint
-        -- (nativeTargets) and its sprint is played here over the game's own
-        if nativeMode and not (kind == 'rifle' and move == 'sprint' and Config.RifleSprintOverlay ~= false) then
-            st = nil
-        end
+        local clip = move == 'sprint' and sprintClip(st)
+        if clip then return Catalog.sprintDict, clip, SPRINT_FLAGS, 5.0, 4.0 end
+        if nativeMode then st = nil end     -- the game plays the style
     end
     if not st or not st.clips then return nil end
-    return st.dict, st.clips[move]
+    return st.dict, st.clips[move], OVERLAY_FLAGS, 3.0, 3.0
 end
 
 local function otherAnim(ped)
@@ -218,7 +222,7 @@ end
 local function stopOverlay(ped, speed)
     if overlay then
         if IsEntityPlayingAnim(ped, overlay.dict, overlay.clip, 3) then
-            StopAnimTask(ped, overlay.dict, overlay.clip, speed)
+            StopAnimTask(ped, overlay.dict, overlay.clip, speed or overlay.blendOut)
         end
         overlay = nil
     end
@@ -226,10 +230,10 @@ end
 
 local function tickOverlay(ped, sprint)
     local aim = aiming(ped)
-    local dict, clip
-    if not aim and overlayAllowed(ped) then dict, clip = overlayTarget(ped, sprint) end
+    local dict, clip, flags, blendIn, blendOut
+    if not aim and overlayAllowed(ped) then dict, clip, flags, blendIn, blendOut = overlayTarget(ped, sprint) end
     if not dict then
-        stopOverlay(ped, aim and 8.0 or 3.0)
+        stopOverlay(ped, aim and 8.0 or nil)
         return
     end
     local playing = overlay and overlay.dict == dict and overlay.clip == clip
@@ -239,9 +243,17 @@ local function tickOverlay(ped, sprint)
         RequestAnimDict(dict)
         return
     end
-    TaskPlayAnim(ped, dict, clip, 3.0, 3.0, -1, OVERLAY_FLAGS, 0.0, false, false, false)
-    overlay = { dict = dict, clip = clip }
+    TaskPlayAnim(ped, dict, clip, blendIn, blendOut, -1, flags, 0.0, false, false, false)
+    overlay = { dict = dict, clip = clip, blendOut = blendOut }
     lastPlay = GetGameTimer()
+end
+
+-- the variants' sprint clips streamed in before the sprint (yours and the other players')
+local function streamSprint(p, weapon)
+    if weaponKind(weapon) == 'rifle' and sprintClip(style('rifle', p.rifle))
+        and not HasAnimDictLoaded(Catalog.sprintDict) then
+        RequestAnimDict(Catalog.sprintDict)
+    end
 end
 
 -- ------------------------------------------------------------------------------------------------
@@ -308,13 +320,13 @@ end)
 -- ------------------------------------------------------------------------------------------------
 -- loops
 -- ------------------------------------------------------------------------------------------------
--- sprinting, held for a moment after the last sprinting frame, so the style is not switched back and
--- forth where a sprint starts and ends
+-- sprinting, held for a moment after the last sprinting frame, so the sprint clip is not started and
+-- stopped again where a sprint starts and ends
 local lastSprintAt = -10000
 
 local function sprinting(ped)
     if IsPedSprinting(ped) then lastSprintAt = GetGameTimer() end
-    return GetGameTimer() - lastSprintAt < 300
+    return GetGameTimer() - lastSprintAt < 200
 end
 
 CreateThread(function()
@@ -330,9 +342,9 @@ CreateThread(function()
         -- the ESC that closed the menu must not open the pause menu a moment later
         local guard = menuOpen or GetGameTimer() - menuClosedAt < 500
         local busy = guard or kind == 'rifle' or kind == 'pistol' or (kind == 'unarmed' and GetPedStealthMovement(ped))
-        local sprint = sprinting(ped)
-        applyMine(ped, sprint)
-        tickOverlay(ped, sprint)
+        applyMine(ped)
+        streamSprint(prefs, GetSelectedPedWeapon(ped))
+        tickOverlay(ped, sprinting(ped))
         if menuOpen then
             -- the mouse is on the menu: no looking around, shooting or pause menu
             for _, c in ipairs({ 1, 2, 24, 25, 68, 69, 70, 91, 92, 106, 140, 141, 142, 199, 200, 257, 263, 264, 322 }) do
@@ -365,6 +377,7 @@ CreateThread(function()
                     if type(p) == 'table' then
                         local motion, cover = nativeTargets(ped, p, false)
                         if motion then clipSetReady(motion) end
+                        streamSprint(p, GetSelectedPedWeapon(ped))
                         local st = others[ped]
                         if not st then
                             st = { cover = false }
